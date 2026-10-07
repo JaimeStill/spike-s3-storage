@@ -6,11 +6,12 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
       POSTGRES_DB: ${POSTGRES_DB:-app}
     ports:
-      # 5436 by default so the stack coexists with go-web-service, sql-dsl, and spike-blobfs on
-      # 5432 through 5434; `mise run integration` sets 5437 for its isolated project.
-      - "127.0.0.1:${POSTGRES_PORT:-5436}:5432"
+      # 5438 by default so the stack coexists with go-web-service, sql-dsl, and spike-blobfs on
+      # 5432 through 5434 and spike-cli-architecture on 5436 and 5437;
+      # `mise run app:integration` sets 5439 for its isolated project.
+      - "127.0.0.1:${POSTGRES_PORT:-5438}:5432"
     volumes:
-      - cliarch-postgres:/var/lib/postgresql
+      - blobfs-postgres:/var/lib/postgresql
     healthcheck:
       test:
         [
@@ -22,4 +23,4 @@ services:
       retries: 5
 
 volumes:
-  cliarch-postgres:
+  blobfs-postgres:

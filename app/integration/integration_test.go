@@ -1354,7 +1354,7 @@ func bookmarkPaths(out string) string {
 // succeeds, while an object command fails at start, once, naming the
 // store's node.
 func TestTheStoreUnreachable(t *testing.T) {
-	tg := open(t, fmt.Sprintf("BLOBFS_STORAGE_ENDPOINT=http://127.0.0.1:%d/devstoreaccount1", closedPort(t)))
+	tg := open(t, fmt.Sprintf("BLOBFS_STORAGE_ENDPOINT=http://127.0.0.1:%d", closedPort(t)))
 	ok(t, tg, "schema", "up")
 
 	ok(t, tg, "mkdir", "/reports")

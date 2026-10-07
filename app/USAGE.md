@@ -1,18 +1,25 @@
 # Usage
 
-A walkthrough of `blobfs` against the development stack, top to bottom, in about 20 minutes. Each
-block is copyable as written; where a command needs an id from earlier output, it shows a
-placeholder such as `<alpha-id>`. Every output below is pasted from a real run; ids, etags, and
-timestamps differ in yours.
+A walkthrough of `blobfs` against the app's development stack, top to bottom, in about 20
+minutes. Each block is copyable as written; where a command needs an id from earlier output, it
+shows a placeholder such as `<alpha-id>`. Every output below is pasted from a real run; ids, etags,
+and timestamps differ in yours. The outputs were captured in spike-cli-architecture, where the app
+stored its objects in Azurite; a section whose output the S3 provider changes says so, and its
+output is to be re-captured against SeaweedFS.
 
-## What the spike is
+## What the app is
 
-The spike rebuilds spike-blobfs's CLI on a dispatcher over the standard library's `flag` (package
-`cli`) and a typed dependency graph (package `graph`) run by a Coordinator (package `lifecycle`).
-Each command declares the graph nodes it uses, and a run builds and starts only those: help and
-usage errors open nothing, directory commands open Postgres, and object commands open Postgres and
-the object store. The evidence the spike answers is listed in
-[`context/README.md`](context/README.md#the-evidence).
+The app is the `blobfs` CLI of spike-cli-architecture, ported into this repository's `app` module
+(`github.com/JaimeStill/spike-s3-storage/app`) with one change of substance: its object store is
+this repository's `s3` provider against SeaweedFS's S3 gateway, where the source used go-storage's
+`azureblob` against Azurite. It rebuilds spike-blobfs's CLI on a dispatcher over the standard
+library's `flag` (package `cli`) and a typed dependency graph (package `graph`) run by a
+Coordinator (package `lifecycle`). Each command declares the graph nodes it uses, and a run builds
+and starts only those: help and usage errors open nothing, directory commands open Postgres, and
+object commands open Postgres and the object store.
+
+The `app` module requires no version of the `s3` module: it finds it through `go.work` alone, so it
+builds only in workspace mode, from anywhere in the repository.
 
 ## Setup
 
@@ -21,17 +28,18 @@ and put it on the `PATH`. The `BLOBFS_*` variables come from `mise.toml`'s `[env
 needs mise activated in the repository; without it, prefix each command with `mise exec --`.
 
 ```sh
-cd /path/to/spike-cli-architecture
-go build -o bin/blobfs ./cmd/blobfs
+cd /path/to/spike-s3-storage
+go build -o bin/blobfs ./app/cmd/blobfs
 export PATH="$PWD/bin:$PATH"
 ```
 
-Start Postgres (5436) and Azurite (10010). `mise run reset` first drops any earlier data, so the
-walkthrough starts from an empty database:
+Start Postgres (5438) and SeaweedFS's S3 gateway (8334), with the bucket `blobfs`, which the
+store's start creates. `mise run app:reset` first drops any earlier data, so the walkthrough
+starts from an empty database and an empty gateway:
 
 ```sh
-mise run reset
-mise run up
+mise run app:reset
+mise run app:up
 blobfs schema status
 ```
 
@@ -383,6 +391,8 @@ printf 'a,b\n1,2\n' > $tmp/data.csv
 
 ### put
 
+*Output to be re-captured against SeaweedFS: the etags below are from the Azurite run of the source spike, spike-cli-architecture.*
+
 `put` takes a local file, or stdin for `-`, and a destination path or directory id:
 
 ```sh
@@ -466,6 +476,8 @@ more: yes
 ```
 
 ### cat and cp
+
+*Output to be re-captured against SeaweedFS: the etags in the `cp` lines below are from the Azurite run of the source spike, spike-cli-architecture.*
 
 ```sh
 blobfs cat /projects/notes.txt     # hello, blobfs
@@ -649,10 +661,12 @@ does.
 
 ## Per-command dependencies
 
-Stop Azurite alone. The compose service is `azurite`:
+*Output to be re-captured against SeaweedFS: the store errors and their timing below are from the Azurite run of the source spike, spike-cli-architecture.*
+
+Stop SeaweedFS alone. The compose service is `seaweedfs`:
 
 ```sh
-docker compose stop azurite
+docker compose stop seaweedfs
 ```
 
 Directory and bookmark commands, and the directories scenario, still succeed:
@@ -664,8 +678,8 @@ blobfs bookmark ls --unit $unit              # an empty page
 blobfs scenario directories | tail -3        # ends with rmdir: /scenario-directories (id …)
 ```
 
-Object commands fail at start, once, naming the `store` node (exit 1). Each waits about 9 seconds
-on the Azure SDK's retries first:
+Object commands fail at start, once, naming the `store` node (exit 1). In the source each waited
+about 9 seconds on the Azure SDK's retries first:
 
 ```sh
 blobfs put $tmp/notes.txt /offline/notes.txt
@@ -679,10 +693,10 @@ blobfs cat: store: storage unavailable: context deadline exceeded
 blobfs scenario files: store: storage unavailable: Put "http://127.0.0.1:10010/devstoreaccount1/cliarch?restype=container": dial tcp 127.0.0.1:10010: connect: connection refused
 ```
 
-Bring Azurite back, and the same `put` succeeds:
+Bring SeaweedFS back, and the same `put` succeeds:
 
 ```sh
-mise run up
+mise run app:up
 blobfs put $tmp/notes.txt /offline/notes.txt   # put: /offline/notes.txt (id …, 14 bytes, etag …)
 ```
 
@@ -690,7 +704,7 @@ Now take the whole stack down. Help, the scenario listing, `version`, and usage 
 nodes, so they still work:
 
 ```sh
-mise run down
+mise run app:down
 blobfs --help > /dev/null; echo $?   # 2
 blobfs scenario | tail -5            # the Scenarios: listing
 blobfs version                       # v0.0.0-20261007181626-ac2107ce8ab6
@@ -700,12 +714,12 @@ blobfs mkdir /down                   # exit 1
 
 ```
 blobfs mkdir: database: database connection failed: failed to connect to `user=app database=app`:
-	127.0.0.1:5436 (127.0.0.1): dial error: dial tcp 127.0.0.1:5436: connect: connection refused
-	127.0.0.1:5436 (127.0.0.1): dial error: dial tcp 127.0.0.1:5436: connect: connection refused
+	127.0.0.1:5438 (127.0.0.1): dial error: dial tcp 127.0.0.1:5438: connect: connection refused
+	127.0.0.1:5438 (127.0.0.1): dial error: dial tcp 127.0.0.1:5438: connect: connection refused
 ```
 
 ```sh
-mise run up
+mise run app:up
 ```
 
 ## Scenarios
@@ -737,6 +751,8 @@ blobfs scenario directories
 …
 ```
 
+*Output to be re-captured against SeaweedFS: the etag in step 3 below is from the Azurite run of the source spike, spike-cli-architecture.*
+
 ```sh
 blobfs scenario files
 blobfs scenario files | tail -4   # the second run ends the same way
@@ -760,8 +776,11 @@ blobfs scenario files | tail -4   # the second run ends the same way
 
 ## The checks
 
-`mise run check` is hermetic: it builds, vets, formats, tidies, runs the tests with `-race`, and
-lints, with and without the integration build tag. Its tests drive the command tree over buffers
+`mise run check` is hermetic: for the `app` module it builds, vets, formats, runs `go fix -diff`,
+runs the tests with `-race`, and lints, with and without the integration build tag, all in
+workspace mode. It skips `go mod tidy -diff` for `app` alone, since tidy cannot resolve the
+unpublished `s3` module that `app` finds through `go.work`; the root and `s3` modules run their
+whole check, tidy included, with `GOWORK=off`. Its tests drive the command tree over buffers
 and run the domain over sqlate's `sqltest` and go-storage's `storagetest.Fake`, with no network:
 
 ```sh
@@ -781,12 +800,14 @@ ok  	github.com/JaimeStill/spike-s3-storage/app/scenario	(cached)
 0 issues.
 ```
 
-`mise run integration` starts its own compose project, `spike-cli-architecture-integration`, on
-5437 and 10011, runs the tagged tests, and removes the project with its volumes, pass or fail. The
-development stack is untouched. It runs about 45 seconds:
+`mise run app:integration` starts its own compose project, `spike-s3-storage-integration`, on
+5439 and 8335, runs the tagged tests, and removes the project with its volumes, pass or fail. The
+development stack is untouched. In the source it ran about 45 seconds:
+
+*Output to be re-captured against SeaweedFS: the timings below are from the Azurite run of the source spike, spike-cli-architecture.*
 
 ```sh
-mise run integration
+mise run app:integration
 ```
 
 ```
@@ -810,7 +831,7 @@ What the `integration` package proves:
   with SIGKILL, and a later `put` resumes the row.
 - **The interrupted put.** A `put -` with stdin held open receives SIGINT mid-upload; it exits 1
   and reports the cancellation once.
-- **The interrupted sweep.** An HTTP relay in front of Azurite lets one blob delete through and
+- **The interrupted sweep.** An HTTP relay in front of the store lets one object delete through and
   answers every later one 503. On a branch of three files and an empty directory, `rm
   --recursive` removes exactly one file and the directory and exits 1; the rerun, with the relay
   disarmed, removes the other two.
@@ -868,8 +889,7 @@ input checks in `Validate`, and success lines.
 
 ## Deliberate differences from spike-blobfs
 
-[context/cobra-conventions.md](context/cobra-conventions.md) records each cobra convention and
-feature spike-blobfs relied on, and what replaced it here.
+These are spike-cli-architecture's, carried over unchanged by the port.
 
 - No `--dsn`, `--variant`, or `--fail-after`. Configuration comes from `BLOBFS_*` variables, the
   composition root fixes blobfs's Postgres engine, and integration states arise through SIGKILL

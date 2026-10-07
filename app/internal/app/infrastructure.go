@@ -4,9 +4,10 @@ import (
 	"github.com/standards-lab/go-database"
 	"github.com/standards-lab/go-database/postgres"
 	"github.com/standards-lab/go-storage"
-	"github.com/standards-lab/go-storage/azureblob"
 	"github.com/standards-lab/sqlate"
 	sqlpostgres "github.com/standards-lab/sqlate/postgres"
+
+	"github.com/JaimeStill/spike-s3-storage/s3"
 
 	"github.com/JaimeStill/spike-s3-storage/app/graph"
 	"github.com/JaimeStill/spike-s3-storage/app/lifecycle"
@@ -74,16 +75,17 @@ func newSQL(n *Nodes) func(*graph.Scope) (*sqlate.DB, error) {
 	}
 }
 
-// newStore constructs the object store over the Azure Blob provider from
-// the storage configuration, BLOBFS_STORAGE_ENDPOINT, _CONTAINER, _ACCOUNT,
-// _KEY, the limits and timeouts go-storage names, and the azureblob options
-// under BLOBFS_STORAGE_OPTIONS_. It does no I/O: Start creates the
-// container when it is missing and probes the service, both bounded by the
-// configuration's request_timeout.
+// newStore constructs the object store over this repository's S3 provider
+// from the storage configuration, BLOBFS_STORAGE_ENDPOINT, _CONTAINER (the
+// bucket), _ACCOUNT (the access key), _KEY (the secret key), the limits and
+// timeouts go-storage names, and the s3 options under
+// BLOBFS_STORAGE_OPTIONS_ (_REGION, _MAX_RETRIES, _PART_SIZE). It does no
+// I/O: Start creates the bucket when it is missing and probes the service,
+// both bounded by the configuration's request_timeout.
 func newStore(n *Nodes) func(*graph.Scope) (*storage.Store, error) {
 	return func(s *graph.Scope) (*storage.Store, error) {
 		cfg := s.Use(n.StorageConfig)
-		client, err := azureblob.New(cfg)
+		client, err := s3.New(cfg)
 		if err != nil {
 			return nil, err
 		}

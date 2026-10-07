@@ -54,7 +54,7 @@ func narrated(t *testing.T, name, out string) {
 func TestScenarioHelp(t *testing.T) {
 	tg := target{env: []string{
 		fmt.Sprintf("BLOBFS_DATABASE_PORT=%d", closedPort(t)),
-		fmt.Sprintf("BLOBFS_STORAGE_ENDPOINT=http://127.0.0.1:%d/devstoreaccount1", closedPort(t)),
+		fmt.Sprintf("BLOBFS_STORAGE_ENDPOINT=http://127.0.0.1:%d", closedPort(t)),
 	}}
 	out, errOut, code := run(t, tg, "scenario")
 	if code != 2 || errOut != "" {
@@ -127,7 +127,7 @@ func TestScenariosClearWhatAnInterruptedRunLeft(t *testing.T) {
 // succeeds, while the files tour fails at start, once, naming the store's
 // node, before narrating anything.
 func TestScenarioDirectoriesWithTheStoreUnreachable(t *testing.T) {
-	tg := open(t, fmt.Sprintf("BLOBFS_STORAGE_ENDPOINT=http://127.0.0.1:%d/devstoreaccount1", closedPort(t)))
+	tg := open(t, fmt.Sprintf("BLOBFS_STORAGE_ENDPOINT=http://127.0.0.1:%d", closedPort(t)))
 	ok(t, tg, "schema", "up")
 
 	narrated(t, "directories", ok(t, tg, "scenario", "directories"))

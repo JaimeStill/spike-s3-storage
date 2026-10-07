@@ -16,7 +16,8 @@ import (
 	godatabase "github.com/standards-lab/go-database"
 	"github.com/standards-lab/go-database/postgres"
 	"github.com/standards-lab/go-storage"
-	"github.com/standards-lab/go-storage/azureblob"
+
+	"github.com/JaimeStill/spike-s3-storage/s3"
 
 	"github.com/JaimeStill/spike-s3-storage/app/cli"
 	"github.com/JaimeStill/spike-s3-storage/app/graph"
@@ -56,7 +57,7 @@ func probeApp(r *apptest.Recorder, stdout, stderr *bytes.Buffer) *app.App {
 	store := g.Define("recorded store", func(s *graph.Scope) (*recorded, error) {
 		s.After(database)
 		cfg := s.Use(n.StorageConfig)
-		client, err := azureblob.New(cfg)
+		client, err := s3.New(cfg)
 		if err != nil {
 			return nil, err
 		}
@@ -137,7 +138,7 @@ func TestInfrastructureIntegration_StartsBothAndShutsDownInReverse(t *testing.T)
 
 func TestInfrastructureIntegration_StoreUnreachableClosesTheDatabase(t *testing.T) {
 	env := storage.NewEnv("BLOBFS")
-	t.Setenv(env.Endpoint, fmt.Sprintf("http://127.0.0.1:%s/devstoreaccount1", strconv.Itoa(closedPort(t))))
+	t.Setenv(env.Endpoint, fmt.Sprintf("http://127.0.0.1:%s", strconv.Itoa(closedPort(t))))
 	t.Setenv(env.RequestTimeout, "5s")
 	// One try: the SDK's default retries back off for seconds against a
 	// port that refuses at once.

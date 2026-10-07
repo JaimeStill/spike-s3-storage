@@ -1,7 +1,8 @@
 # Standards
 
-The judgement calls the check can't enforce, one line each, for the standards-reviewer. What
-`mise run check` enforces is never restated here.
+The judgement calls the check can't enforce for the `app` module, one line each, for the
+standards-reviewer. They came with the app from spike-cli-architecture, and cover `app/` alone,
+not the root or `s3` modules. What `mise run check` enforces is never restated here.
 
 The architecture pages that apply, in the architecture repository:
 
@@ -10,8 +11,8 @@ The architecture pages that apply, in the architecture repository:
 - `principles/minimal-footprint.md`
 - `standards/go-elemental/principles/topology-and-naming.md`
 - `standards/go-elemental/principles/tests-and-docs.md`
-- the domain-file ontology, a go-elemental principles page carried as a pending edit in the goal
-  record; until it lands, the ontology line below is the rule
+- the domain-file ontology, once it lands as a go-elemental principles page; until then the
+  ontology line below is the rule
 
 ## Types and files
 
