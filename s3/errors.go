@@ -25,8 +25,8 @@ func classify(err error) error {
 
 	// The SDK wraps a send failure in a ResponseError too, one with no
 	// response and status 0, so an answer is a ResponseError with a status.
-	var respErr *smithyhttp.ResponseError
-	if !errors.As(err, &respErr) || respErr.HTTPStatusCode() == 0 {
+	respErr, ok := errors.AsType[*smithyhttp.ResponseError](err)
+	if !ok || respErr.HTTPStatusCode() == 0 {
 		// No answer arrived: the endpoint was unreachable, the deadline
 		// passed, or the caller cancelled. Only the last passes through.
 		if errors.Is(err, context.Canceled) {
