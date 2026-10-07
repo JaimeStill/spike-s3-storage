@@ -1,0 +1,64 @@
+# golangci-lint v2 configuration, run per module by `mise run check`.
+version: "2"
+
+linters:
+  # The standard set (errcheck, govet, ineffassign, staticcheck, unused),
+  # plus depguard, which holds packages cli, lifecycle, and graph to their
+  # allowed imports, and testpackage, which keeps tests black-box. Its
+  # skip regexp is narrowed to export_test.go: tests live in <pkg>_test
+  # and drive the exported API, and the one white-box file allowed is
+  # export_test.go, which only exports a clock or probe hook the API
+  # cannot reach.
+  default: standard
+  enable:
+    - depguard
+    - testpackage
+  settings:
+    testpackage:
+      skip-regexp: export_test\.go
+    depguard:
+      rules:
+        # Package cli is shaped to become go-cli-sdk's package, so it
+        # depends on nothing but the standard library, go-core, and the
+        # graph and lifecycle packages that build and run the nodes a
+        # command declares with Use, both candidates for go-core. The rule
+        # covers its tests too: they drive the API with the same imports
+        # plus cli itself. Allow entries match by prefix unless they end
+        # in `$`, so each is anchored: go-core as the exact module path or
+        # a path under it (not a sibling like go-core-extra), and cli as
+        # itself (not a sibling like clix).
+        cli:
+          list-mode: strict
+          files:
+            - "**/cli/*.go"
+          allow:
+            - $gostd
+            - github.com/standards-lab/go-core$
+            - github.com/standards-lab/go-core/
+            - github.com/JaimeStill/spike-s3-storage/app/cli$
+            - github.com/JaimeStill/spike-s3-storage/app/graph$
+            - github.com/JaimeStill/spike-s3-storage/app/lifecycle$
+        # Package lifecycle is shaped to be promoted into go-core, so it
+        # depends on the standard library, go-core, and graph, the package
+        # it runs; its tests add lifecycle itself. Each is anchored like cli
+        # above.
+        lifecycle:
+          list-mode: strict
+          files:
+            - "**/lifecycle/*.go"
+          allow:
+            - $gostd
+            - github.com/standards-lab/go-core$
+            - github.com/standards-lab/go-core/
+            - github.com/JaimeStill/spike-s3-storage/app/graph$
+            - github.com/JaimeStill/spike-s3-storage/app/lifecycle$
+        # Package graph is shaped to be promoted into go-core, like
+        # lifecycle, so it depends on the standard library alone; its tests
+        # add graph itself, anchored like cli above.
+        graph:
+          list-mode: strict
+          files:
+            - "**/graph/*.go"
+          allow:
+            - $gostd
+            - github.com/JaimeStill/spike-s3-storage/app/graph$
