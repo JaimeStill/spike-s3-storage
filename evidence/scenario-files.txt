@@ -1,0 +1,108 @@
+# run 1 against the development stack (mise run app:up; blobfs schema up)
+$ blobfs scenario files
+[1/9] Clear /scenario-files if an earlier run left it behind
+  Nothing to clear: /scenario-files does not exist, so this run starts clean.
+
+[2/9] Create /scenario-files and /scenario-files/docs: mkdir
+    mkdir: /scenario-files (id 01a11865-d79b-757e-9705-dc8146f50287)
+    mkdir: /scenario-files/docs (id 01a11865-d79d-736f-9f11-950cee661a5b)
+
+[3/9] Put hello.txt from memory with no size, as put - streams stdin
+  The row is committed pending before any byte is put; the store takes the body
+  to its end, and the row is completed with the size and etag the store reports.
+    put: /scenario-files/docs/hello.txt (id 01a11865-d79e-7f47-ac3c-88bdad370947, 26 bytes, etag "1ab16aa1b95f5a9de65c45f84b675adb")
+
+[4/9] Put notes.txt with its size stated, as put of a local file
+    put: /scenario-files/docs/notes.txt (id 01a11865-d876-76f1-8514-a213c78e5c90, 59 bytes, etag "733ea586b9389cf7ad8541e05acf1de7")
+
+[5/9] Read hello.txt back: cat
+    hello from the files tour
+
+[6/9] Copy hello.txt into /scenario-files and read the copy: cp, cat
+  A destination that names an existing directory takes the copy under the
+  source's name; the copy is a new row over a new object.
+    cp: /scenario-files/docs/hello.txt -> /scenario-files/hello.txt (id 01a11865-d87e-7f91-a751-167c3bd003bc, 26 bytes, etag "1ab16aa1b95f5a9de65c45f84b675adb")
+    hello from the files tour
+
+[7/9] List the working area and docs: ls
+  ls /scenario-files
+    KIND  NAME       SIZE  STATUS     UPDATED              ID
+    dir   docs       -     -          2026-10-07 22:04:49  01a11865-d79d-736f-9f11-950cee661a5b
+    file  hello.txt  26    available  2026-10-07 22:04:50  01a11865-d87e-7f91-a751-167c3bd003bc
+    directories: 1 on page 1 of size 20, total 1
+    more: no
+    files: 1 on page 1 of size 20, total 1
+    more: no
+  ls /scenario-files/docs
+    KIND  NAME       SIZE  STATUS     UPDATED              ID
+    file  hello.txt  26    available  2026-10-07 22:04:50  01a11865-d79e-7f47-ac3c-88bdad370947
+    file  notes.txt  59    available  2026-10-07 22:04:50  01a11865-d876-76f1-8514-a213c78e5c90
+    directories: 0 on page 1 of size 20, total 0
+    more: no
+    files: 2 on page 1 of size 20, total 2
+    more: no
+
+[8/9] Remove the copy: rm
+    rm: /scenario-files/hello.txt (id 01a11865-d87e-7f91-a751-167c3bd003bc)
+
+[9/9] Remove the working area and everything under it: rm --recursive
+  The branch is marked deleting in one transaction, then swept until no work
+  remains: each file's object and row, then each directory once it is empty. A
+  rerun starts clean.
+    rm --recursive: /scenario-files (2 files, 2 directories)
+exit 0
+
+# run 2 against the development stack (mise run app:up; blobfs schema up)
+$ blobfs scenario files
+[1/9] Clear /scenario-files if an earlier run left it behind
+  Nothing to clear: /scenario-files does not exist, so this run starts clean.
+
+[2/9] Create /scenario-files and /scenario-files/docs: mkdir
+    mkdir: /scenario-files (id 01a11865-d8d7-76d8-ba45-2ed5e05b3e08)
+    mkdir: /scenario-files/docs (id 01a11865-d8da-72be-858f-7468b31e8791)
+
+[3/9] Put hello.txt from memory with no size, as put - streams stdin
+  The row is committed pending before any byte is put; the store takes the body
+  to its end, and the row is completed with the size and etag the store reports.
+    put: /scenario-files/docs/hello.txt (id 01a11865-d8dc-7a25-88ac-b8caae63848e, 26 bytes, etag "1ab16aa1b95f5a9de65c45f84b675adb")
+
+[4/9] Put notes.txt with its size stated, as put of a local file
+    put: /scenario-files/docs/notes.txt (id 01a11865-d8e3-7711-b709-cc457dd44a23, 59 bytes, etag "733ea586b9389cf7ad8541e05acf1de7")
+
+[5/9] Read hello.txt back: cat
+    hello from the files tour
+
+[6/9] Copy hello.txt into /scenario-files and read the copy: cp, cat
+  A destination that names an existing directory takes the copy under the
+  source's name; the copy is a new row over a new object.
+    cp: /scenario-files/docs/hello.txt -> /scenario-files/hello.txt (id 01a11865-d8eb-7368-a030-aadb2a0a9ef8, 26 bytes, etag "1ab16aa1b95f5a9de65c45f84b675adb")
+    hello from the files tour
+
+[7/9] List the working area and docs: ls
+  ls /scenario-files
+    KIND  NAME       SIZE  STATUS     UPDATED              ID
+    dir   docs       -     -          2026-10-07 22:04:50  01a11865-d8da-72be-858f-7468b31e8791
+    file  hello.txt  26    available  2026-10-07 22:04:50  01a11865-d8eb-7368-a030-aadb2a0a9ef8
+    directories: 1 on page 1 of size 20, total 1
+    more: no
+    files: 1 on page 1 of size 20, total 1
+    more: no
+  ls /scenario-files/docs
+    KIND  NAME       SIZE  STATUS     UPDATED              ID
+    file  hello.txt  26    available  2026-10-07 22:04:50  01a11865-d8dc-7a25-88ac-b8caae63848e
+    file  notes.txt  59    available  2026-10-07 22:04:50  01a11865-d8e3-7711-b709-cc457dd44a23
+    directories: 0 on page 1 of size 20, total 0
+    more: no
+    files: 2 on page 1 of size 20, total 2
+    more: no
+
+[8/9] Remove the copy: rm
+    rm: /scenario-files/hello.txt (id 01a11865-d8eb-7368-a030-aadb2a0a9ef8)
+
+[9/9] Remove the working area and everything under it: rm --recursive
+  The branch is marked deleting in one transaction, then swept until no work
+  remains: each file's object and row, then each directory once it is empty. A
+  rerun starts clean.
+    rm --recursive: /scenario-files (2 files, 2 directories)
+exit 0
+

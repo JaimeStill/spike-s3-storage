@@ -87,9 +87,13 @@ func (tg target) with(env ...string) target {
 // names, which injects a store outage at an exact request: once armed with
 // failDeletesAfter(n), it lets n blob deletes through and answers every
 // later one 503 Service Unavailable without forwarding it, while every
-// other request passes. Azurite is reached path-style, so a blob delete is
-// a DELETE whose query has no restype, which a container's delete carries.
-// Disarmed, the relay passes everything.
+// other request passes. The s3 provider reaches the store path-style, so a
+// blob delete is a DeleteObject, a DELETE of /<bucket>/<key>, told from a
+// bucket's DELETE of /<bucket> by its path's depth, and from a multipart
+// upload's abort, a DELETE of the object's path, by the abort's uploadId
+// query. The provider deletes one object per DeleteObject and never sends
+// a batch DeleteObjects, a POST with a delete query, so the relay matches
+// none. Disarmed, the relay passes everything.
 type faultRelay struct {
 	addr string
 
@@ -107,8 +111,12 @@ func relay(t *testing.T) *faultRelay {
 	t.Helper()
 	store := storeEndpoint(t)
 	r := &faultRelay{allow: -1}
+	// The forwarded request keeps the Host the provider sent to the relay:
+	// SigV4 signs the host header, so the store, rewritten to its own host
+	// as SetURL does, would reject every request's signature.
 	proxy := &httputil.ReverseProxy{Rewrite: func(pr *httputil.ProxyRequest) {
 		pr.SetURL(&url.URL{Scheme: store.Scheme, Host: store.Host})
+		pr.Out.Host = pr.In.Host
 	}}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if r.refuse(req) {
@@ -125,7 +133,7 @@ func relay(t *testing.T) *faultRelay {
 // refuse reports whether req is a blob delete the armed relay refuses,
 // spending one of the deletes it lets through when it is not.
 func (r *faultRelay) refuse(req *http.Request) bool {
-	if req.Method != http.MethodDelete || req.URL.Query().Has("restype") {
+	if !objectDelete(req) {
 		return false
 	}
 	r.mu.Lock()
@@ -140,6 +148,17 @@ func (r *faultRelay) refuse(req *http.Request) bool {
 		r.allow--
 		return false
 	}
+}
+
+// objectDelete reports whether req is a path-style DeleteObject: a DELETE
+// whose path names a bucket and a key under it, and which carries no
+// uploadId, which a multipart upload's abort does.
+func objectDelete(req *http.Request) bool {
+	if req.Method != http.MethodDelete || req.URL.Query().Has("uploadId") {
+		return false
+	}
+	_, key, _ := strings.Cut(strings.TrimPrefix(req.URL.Path, "/"), "/")
+	return key != ""
 }
 
 // failDeletesAfter arms the relay: the next n blob deletes pass, and every
