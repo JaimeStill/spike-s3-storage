@@ -11,7 +11,10 @@
 // CLI for state, the environment for configuration, the network for
 // faults, and signals and the exit code for lifecycle. It writes nothing
 // to the database or the store behind the binary's back, and reads them
-// only through the binary.
+// only through the binary, with one exception: the large-body tests read
+// the store's bucket through an S3 client of their own, for what blobfs
+// cannot show, the multipart uploads open in it, their parts, the objects
+// in it, and an object's ETag.
 //
 //   - A pending row is a crashed put's: put - runs with its standard input
 //     held open on a pipe, so it commits the pending row and waits on the
@@ -38,6 +41,17 @@
 // object commands fail naming the store. TestAnInterruptedPut sends SIGINT
 // to a put blocked on its held-open standard input, through main's signal
 // context: it exits one, reporting the cancellation once.
+// largebodies_test.go runs the binary at 5 MiB parts, through
+// BLOBFS_STORAGE_OPTIONS_PART_SIZE, so a body of three parts takes the
+// provider's multipart path. TestALargePut puts one from a local file and
+// one from standard input: each round-trips through cat, is stored with an
+// ETag in the multipart form, and leaves no upload open.
+// TestAnInterruptedLargePut and TestACrashedLargePut stop a put - once the
+// store shows its upload open with a part received, the put waiting on
+// standard input for the next: SIGINT leaves no row, no object, and no
+// open upload; SIGKILL leaves the pending row and the open upload, and a
+// later put resumes the row under its key while the crashed put's upload
+// stays open, an orphan only a lifecycle rule or a sweep frees.
 // scenarios_test.go prints the scenario parent's help, with its listing,
 // with nothing reachable, runs each tour twice in a row and after an
 // interrupted run, and runs scenario directories with the store

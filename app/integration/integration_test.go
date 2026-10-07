@@ -5,6 +5,7 @@ package integration_test
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -208,6 +209,9 @@ type proc struct {
 	out, errOut bytes.Buffer
 	done        chan struct{}
 	err         error
+	// quiet logs stdout as its length and SHA-256 rather than its bytes,
+	// for a run whose stdout is a large body.
+	quiet bool
 }
 
 // start starts the binary with args against tg, stdin as its standard
@@ -235,7 +239,7 @@ func start(t *testing.T, tg target, stdin io.Reader, line string, args ...string
 		default:
 			_ = cmd.Process.Kill()
 			<-p.done
-			t.Logf("%s killed at the test's end:\nstdout: %s\nstderr: %s", line, p.out.String(), p.errOut.String())
+			t.Logf("%s killed at the test's end:\nstdout: %s\nstderr: %s", line, p.stdout(), p.errOut.String())
 		}
 	})
 	return p
@@ -254,7 +258,7 @@ func (p *proc) wait(t *testing.T) (stdout, stderr string, code int) {
 			_ = p.cmd.Process.Kill()
 			<-p.done
 		}
-		t.Fatalf("%s did not exit within %s:\nstdout: %s\nstderr: %s", p.line, processtest.Failsafe, p.out.String(), p.errOut.String())
+		t.Fatalf("%s did not exit within %s:\nstdout: %s\nstderr: %s", p.line, processtest.Failsafe, p.stdout(), p.errOut.String())
 	}
 	var exit *exec.ExitError
 	switch {
@@ -279,7 +283,7 @@ func (p *proc) crash(t *testing.T) {
 	}
 	var exit *exec.ExitError
 	if !errors.As(p.err, &exit) || exit.Sys().(syscall.WaitStatus).Signal() != syscall.SIGKILL {
-		t.Fatalf("%s ended by %v before the kill:\nstdout: %s\nstderr: %s", p.line, p.err, p.out.String(), p.errOut.String())
+		t.Fatalf("%s ended by %v before the kill:\nstdout: %s\nstderr: %s", p.line, p.err, p.stdout(), p.errOut.String())
 	}
 	t.Logf("$ kill -KILL %d  # %s", p.cmd.Process.Pid, strings.TrimPrefix(p.line, "$ "))
 }
@@ -315,12 +319,21 @@ func (p *proc) log(t *testing.T, code int) {
 	var b strings.Builder
 	b.WriteString(p.line)
 	if p.out.Len() > 0 {
-		b.WriteString("\n" + strings.TrimRight(p.out.String(), "\n"))
+		b.WriteString("\n" + strings.TrimRight(p.stdout(), "\n"))
 	}
 	if code != 0 {
 		fmt.Fprintf(&b, "\nexit %d: %s", code, strings.TrimRight(p.errOut.String(), "\n"))
 	}
 	t.Log(b.String())
+}
+
+// stdout returns the process's stdout as the transcript shows it: the bytes,
+// or for a quiet process their length and SHA-256.
+func (p *proc) stdout() string {
+	if p.quiet {
+		return fmt.Sprintf("<%d bytes, sha256 %x>", p.out.Len(), sha256.Sum256(p.out.Bytes()))
+	}
+	return p.out.String()
 }
 
 // run executes the binary with args against tg, logs the run as a shell
@@ -1470,6 +1483,14 @@ func TestAnInterruptedPut(t *testing.T) {
 		t.Fatalf("%s exited before the interrupt:\nstdout: %s\nstderr: %s", p.line, p.out.String(), p.errOut.String())
 	}
 
+	p.interrupt(t, path)
+}
+
+// interrupt sends SIGINT to p, a put of path, and fails the test unless it
+// exits one with nothing on stdout, reporting the cancellation once, as the
+// one line process.Fail writes: the command's path, then the error.
+func (p *proc) interrupt(t *testing.T, path string) {
+	t.Helper()
 	_ = p.cmd.Process.Signal(os.Interrupt)
 	t.Logf("$ kill -INT %d  # %s", p.cmd.Process.Pid, strings.TrimPrefix(p.line, "$ "))
 	out, errOut, code := p.wait(t)
