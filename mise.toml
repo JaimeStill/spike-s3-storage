@@ -29,6 +29,25 @@ for mod in $GO_MODULES; do
 done
 '''
 
+[tasks."seaweedfs:start"]
+description = "Start the SeaweedFS acceptance harness and wait until its S3 gateway answers"
+run = "scripts/seaweedfs.sh start"
+
+[tasks."seaweedfs:stop"]
+description = "Stop the SeaweedFS acceptance harness, discarding its data"
+run = "scripts/seaweedfs.sh stop"
+
+# The s3 module's tests with the endpoint set, so the acceptance tests run
+# rather than skip. The harness must be running: see seaweedfs:start.
+[tasks.acceptance]
+description = "Run the s3 module's tests, acceptance included, against the running SeaweedFS harness"
+run = '''
+set -eu
+export GOWORK=off
+cd "$MISE_PROJECT_ROOT/s3"
+S3_TEST_ENDPOINT="http://127.0.0.1:${SEAWEEDFS_PORT:-8333}" go test -race -count=1 -v ./...
+'''
+
 [tasks.currency]
 description = "Report every requirement, Go version, tool, action pin, and image tag behind its latest; writes nothing"
 run = "scripts/currency.sh"
