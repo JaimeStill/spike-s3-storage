@@ -11,8 +11,7 @@ The architecture pages that apply, in the architecture repository:
 - `principles/minimal-footprint.md`
 - `standards/go-elemental/principles/topology-and-naming.md`
 - `standards/go-elemental/principles/tests-and-docs.md`
-- the domain-file ontology, once it lands as a go-elemental principles page; until then the
-  ontology line below is the rule
+- `standards/go-elemental/principles/domain-files.md`, the domain-file ontology
 
 ## Types and files
 

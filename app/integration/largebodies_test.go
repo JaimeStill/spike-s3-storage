@@ -94,6 +94,16 @@ func (s rawStore) uploads(t *testing.T) []types.MultipartUpload {
 	return out.Uploads
 }
 
+// bucketUploads is uploads, but for a bucket the put has not yet created,
+// which has none.
+func (s rawStore) bucketUploads(t *testing.T) []types.MultipartUpload {
+	t.Helper()
+	if _, err := s.client.HeadBucket(t.Context(), &awss3.HeadBucketInput{Bucket: aws.String(s.bucket)}); err != nil {
+		return nil
+	}
+	return s.uploads(t)
+}
+
 // parts returns how many parts the open upload has received.
 func (s rawStore) parts(t *testing.T, u types.MultipartUpload) int {
 	t.Helper()
@@ -246,16 +256,6 @@ func midUpload(t *testing.T, tg target, s rawStore, path string) (*proc, types.M
 	}
 	t.Logf("the store shows upload %s of %s open with its first part", aws.ToString(upload.UploadId), aws.ToString(upload.Key))
 	return p, upload
-}
-
-// bucketUploads is uploads, but for a bucket the put has not yet created,
-// which has none.
-func (s rawStore) bucketUploads(t *testing.T) []types.MultipartUpload {
-	t.Helper()
-	if _, err := s.client.HeadBucket(t.Context(), &awss3.HeadBucketInput{Bucket: aws.String(s.bucket)}); err != nil {
-		return nil
-	}
-	return s.uploads(t)
 }
 
 // TestAnInterruptedLargePut sends SIGINT to a put - mid-upload: the put
