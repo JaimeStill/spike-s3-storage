@@ -1,0 +1,22 @@
+# go.work and go.work.sum are committed; this repo is multi-module by design.
+
+# Claude Code session files.
+.claude/
+
+# Per-machine mise overrides.
+mise.local.toml
+
+# Build and test output.
+bin/
+*.test
+*.out
+coverage.*
+
+# Editor and OS.
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
