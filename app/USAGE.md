@@ -2,10 +2,9 @@
 
 A walkthrough of `blobfs` against the app's development stack, top to bottom, in about 20
 minutes. Each block is copyable as written; where a command needs an id from earlier output, it
-shows a placeholder such as `<alpha-id>`. Every output below is pasted from a real run; ids, etags,
-and timestamps differ in yours. The outputs were captured in spike-cli-architecture, where the app
-stored its objects in Azurite; a section whose output the S3 provider changes says so, and its
-output is to be re-captured against SeaweedFS.
+shows a placeholder such as `<alpha-id>`. Every output below is pasted from one real run against
+this repository's development stack, Postgres and SeaweedFS; ids, etags, timestamps, and timings
+differ in yours.
 
 ## What the app is
 
@@ -194,11 +193,11 @@ blobfs mkdir /projects/delta
 ```
 
 ```
-mkdir: /projects (id 01a11799-fb8d-70dc-8b77-9e17f1ad755a)
-mkdir: /projects/alpha (id 01a11799-fba6-73eb-b7ed-bae1eec7775c)
-mkdir: /projects/beta (id 01a11799-fbbb-7b3d-8ef4-7e9f2bbb4971)
-mkdir: /projects/gamma (id 01a11799-fbd4-7cd8-98bd-b92fc9a7b66b)
-mkdir: /projects/delta (id 01a11799-fbec-767f-bfc5-aed09c86877d)
+mkdir: /projects (id 01a1188d-06b8-72f9-b9c1-b6d2b77ed41f)
+mkdir: /projects/alpha (id 01a1188d-06d5-7c05-8d7e-17957b732a0b)
+mkdir: /projects/beta (id 01a1188d-06f2-7165-9a99-140b2d021367)
+mkdir: /projects/gamma (id 01a1188d-070c-7ef7-b05e-c963d12519b6)
+mkdir: /projects/delta (id 01a1188d-0728-7e13-a024-2bd12bf2c8c3)
 ```
 
 The `(id …)` values are the `<alpha-id>`, `<beta-id>`, `<gamma-id>`, and `<delta-id>` used
@@ -218,8 +217,8 @@ blobfs ls /projects --size 2
 
 ```
 KIND  NAME   SIZE  STATUS  UPDATED              ID
-dir   alpha  -     -       2026-10-07 18:22:09  01a11799-fba6-73eb-b7ed-bae1eec7775c
-dir   beta   -     -       2026-10-07 18:22:09  01a11799-fbbb-7b3d-8ef4-7e9f2bbb4971
+dir   alpha  -     -       2026-10-07 22:47:37  01a1188d-06d5-7c05-8d7e-17957b732a0b
+dir   beta   -     -       2026-10-07 22:47:37  01a1188d-06f2-7165-9a99-140b2d021367
 directories: 2 on page 1 of size 2, total 4
 more: yes
 files: 0 on page 1 of size 2, total 0
@@ -243,8 +242,8 @@ blobfs ls /projects --size 2 --cursors
 
 ```
 KIND  NAME   SIZE  STATUS  UPDATED              ID
-dir   alpha  -     -       2026-10-07 18:22:09  01a11799-fba6-73eb-b7ed-bae1eec7775c
-dir   beta   -     -       2026-10-07 18:22:09  01a11799-fbbb-7b3d-8ef4-7e9f2bbb4971
+dir   alpha  -     -       2026-10-07 22:47:37  01a1188d-06d5-7c05-8d7e-17957b732a0b
+dir   beta   -     -       2026-10-07 22:47:37  01a1188d-06f2-7165-9a99-140b2d021367
 directories: 2 on page 1 of size 2, total 4
 more: yes
 next-dirs: Vff6NnsidiI6MSwiYmFzZSI6ImRpcmVjdG9yeV9jaGlsZHJlbiIsInRlcm1zIjpbIm5hbWUiXSwiZGVzYyI6ZmFsc2UsImZpbHRlcnMiOiJbe1wiRmllbGRcIjpcInN0YXR1c1wiLFwiT3BcIjpcIm5lXCIsXCJWYWx1ZVwiOlwiZGVsZXRpbmdcIn1dIiwidmFsdWVzIjpbImJldGEiXX0
@@ -261,8 +260,8 @@ blobfs ls /projects --size 2 --after-dirs <next-dirs>
 
 ```
 KIND  NAME   SIZE  STATUS  UPDATED              ID
-dir   delta  -     -       2026-10-07 18:22:09  01a11799-fbec-767f-bfc5-aed09c86877d
-dir   gamma  -     -       2026-10-07 18:22:09  01a11799-fbd4-7cd8-98bd-b92fc9a7b66b
+dir   delta  -     -       2026-10-07 22:47:38  01a1188d-0728-7e13-a024-2bd12bf2c8c3
+dir   gamma  -     -       2026-10-07 22:47:37  01a1188d-070c-7ef7-b05e-c963d12519b6
 directories: 2 after the cursor, size 2, total not counted
 more: no
 files: 0 on page 1 of size 2, total 0
@@ -283,12 +282,12 @@ blobfs stat id:<alpha-id>
 
 ```
 path:    /projects/alpha
-id:      01a11799-fba6-73eb-b7ed-bae1eec7775c
-parent:  01a11799-fb8d-70dc-8b77-9e17f1ad755a
+id:      01a1188d-06d5-7c05-8d7e-17957b732a0b
+parent:  01a1188d-06b8-72f9-b9c1-b6d2b77ed41f
 name:    alpha
 version: 1
-created: 2026-10-07T18:22:09Z
-updated: 2026-10-07T18:22:09Z
+created: 2026-10-07T22:47:37Z
+updated: 2026-10-07T22:47:37Z
 ```
 
 ### mv
@@ -304,10 +303,10 @@ blobfs mv id:<alpha-id> id:<gamma-id>                 # id -> id: into gamma
 ```
 
 ```
-mv: /projects/alpha -> /projects/alpha2 (id 01a11799-fba6-73eb-b7ed-bae1eec7775c)
-mv: /projects/alpha2 -> /projects/beta/alpha (id 01a11799-fba6-73eb-b7ed-bae1eec7775c)
-mv: /projects/beta/alpha -> /projects/delta/alpha (id 01a11799-fba6-73eb-b7ed-bae1eec7775c)
-mv: /projects/delta/alpha -> /projects/gamma/alpha (id 01a11799-fba6-73eb-b7ed-bae1eec7775c)
+mv: /projects/alpha -> /projects/alpha2 (id 01a1188d-06d5-7c05-8d7e-17957b732a0b)
+mv: /projects/alpha2 -> /projects/beta/alpha (id 01a1188d-06d5-7c05-8d7e-17957b732a0b)
+mv: /projects/beta/alpha -> /projects/delta/alpha (id 01a1188d-06d5-7c05-8d7e-17957b732a0b)
+mv: /projects/delta/alpha -> /projects/gamma/alpha (id 01a1188d-06d5-7c05-8d7e-17957b732a0b)
 ```
 
 ### rmdir, and mkdir's one refusal
@@ -344,8 +343,8 @@ blobfs mkdir /team/docs
 ```
 
 ```
-mkdir: /team (id 01a11799-fdf7-72c8-a1ed-f41ed0414890, unit 0199aaaa-0000-7000-8000-000000000001)
-mkdir: /team/docs (id 01a11799-fe24-7f31-b057-7e7a9673d421)
+mkdir: /team (id 01a1188d-096e-777e-a4d5-de63806ff079, unit 0199aaaa-0000-7000-8000-000000000001)
+mkdir: /team/docs (id 01a1188d-098a-7dd0-a52b-03181300cf69)
 ```
 
 At the root, `ls --unit` lists the unit's own top-level directories; below it, the unit must own
@@ -391,8 +390,6 @@ printf 'a,b\n1,2\n' > $tmp/data.csv
 
 ### put
 
-*Output to be re-captured against SeaweedFS: the etags below are from the Azurite run of the source spike, spike-cli-architecture.*
-
 `put` takes a local file, or stdin for `-`, and a destination path or directory id:
 
 ```sh
@@ -403,10 +400,10 @@ blobfs put $tmp/notes.txt id:<delta-id>
 ```
 
 ```
-put: /projects/notes.txt (id 01a11799-fe9e-7909-be7c-d047d039c095, 14 bytes, etag "0x278E323001C6F40")
-put: /projects/data.csv (id 01a11799-fec4-7ac8-ae51-734b0f45d3a1, 8 bytes, etag "0x246662AA1485840")
-put: /projects/stdin.bin (id 01a11799-fee1-7841-ac84-193fa0a5334f, 11 bytes, etag "0x21D3DB36A3D7760")
-put: /projects/delta/notes.txt (id 01a11799-fefe-7ed9-bedf-6afc343d3488, 14 bytes, etag "0x1DEDD42D39F3BF0")
+put: /projects/notes.txt (id 01a1188d-0a14-7416-be62-56754effabda, 14 bytes, etag "3c6c327597fd08441d05ba687f2412db")
+put: /projects/data.csv (id 01a1188d-0b0f-7b64-a4c5-c67871a69bdb, 8 bytes, etag "e5ebd4c02cefbe7955977c67ada242b7")
+put: /projects/stdin.bin (id 01a1188d-0b2c-7c58-8252-e384a99cb08a, 11 bytes, etag "2d57fda9f25f1fa74aff2669eabc4aba")
+put: /projects/delta/notes.txt (id 01a1188d-0b4f-75f8-b833-45f9ca0050a2, 14 bytes, etag "3c6c327597fd08441d05ba687f2412db")
 ```
 
 The `(id …)` values are `<notes-id>`, `<data-id>`, and `<stdin-id>` below. A name an available
@@ -417,7 +414,7 @@ blobfs put $tmp/notes.txt id:<delta-id>
 ```
 
 ```
-blobfs put: files: put notes.txt in directory 01a11799-fbec-767f-bfc5-aed09c86877d: data: create file "notes.txt" in 01a11799-fbec-767f-bfc5-aed09c86877d: blobfs: name taken (constraint blobfs_uq_file_directory_name)
+blobfs put: files: put notes.txt in directory 01a1188d-0728-7e13-a024-2bd12bf2c8c3: data: create file "notes.txt" in 01a1188d-0728-7e13-a024-2bd12bf2c8c3: blobfs: name taken (constraint blobfs_uq_file_directory_name)
 ```
 
 `stat` on a file shows the content type `put` chose from the extension (`--content-type`
@@ -429,16 +426,16 @@ blobfs stat /projects/notes.txt
 
 ```
 path:         /projects/notes.txt
-id:           01a11799-fe9e-7909-be7c-d047d039c095
+id:           01a1188d-0a14-7416-be62-56754effabda
 name:         notes.txt
 status:       available
 size:         14
 content-type: text/plain; charset=utf-8
-etag:         "0x278E323001C6F40"
-key:          01a11799-fe9e-7909-be7c-d047d039c095/notes.txt
+etag:         "3c6c327597fd08441d05ba687f2412db"
+key:          01a1188d-0a14-7416-be62-56754effabda/notes.txt
 version:      2
-created:      2026-10-07T18:22:10Z
-updated:      2026-10-07T18:22:10Z
+created:      2026-10-07T22:47:38Z
+updated:      2026-10-07T22:47:38Z
 ```
 
 ### Both cursors
@@ -451,8 +448,8 @@ blobfs ls /projects --size 1 --cursors
 
 ```
 KIND  NAME      SIZE  STATUS     UPDATED              ID
-dir   delta     -     -          2026-10-07 18:22:09  01a11799-fbec-767f-bfc5-aed09c86877d
-file  data.csv  8     available  2026-10-07 18:22:10  01a11799-fec4-7ac8-ae51-734b0f45d3a1
+dir   delta     -     -          2026-10-07 22:47:38  01a1188d-0728-7e13-a024-2bd12bf2c8c3
+file  data.csv  8     available  2026-10-07 22:47:39  01a1188d-0b0f-7b64-a4c5-c67871a69bdb
 directories: 1 on page 1 of size 1, total 2
 more: yes
 next-dirs: LgYem3sidiI6MSwiYmFzZSI6ImRpcmVjdG9yeV9jaGlsZHJlbiIsInRlcm1zIjpbIm5hbWUiXSwiZGVzYyI6ZmFsc2UsImZpbHRlcnMiOiJbe1wiRmllbGRcIjpcInN0YXR1c1wiLFwiT3BcIjpcIm5lXCIsXCJWYWx1ZVwiOlwiZGVsZXRpbmdcIn1dIiwidmFsdWVzIjpbImRlbHRhIl19
@@ -467,8 +464,8 @@ blobfs ls /projects --size 1 --after-dirs <next-dirs> --after-files <next-files>
 
 ```
 KIND  NAME       SIZE  STATUS     UPDATED              ID
-dir   gamma      -     -          2026-10-07 18:22:09  01a11799-fbd4-7cd8-98bd-b92fc9a7b66b
-file  notes.txt  14    available  2026-10-07 18:22:10  01a11799-fe9e-7909-be7c-d047d039c095
+dir   gamma      -     -          2026-10-07 22:47:37  01a1188d-070c-7ef7-b05e-c963d12519b6
+file  notes.txt  14    available  2026-10-07 22:47:38  01a1188d-0a14-7416-be62-56754effabda
 directories: 1 after the cursor, size 1, total not counted
 more: no
 files: 1 after the cursor, size 1, total not counted
@@ -476,8 +473,6 @@ more: yes
 ```
 
 ### cat and cp
-
-*Output to be re-captured against SeaweedFS: the etags in the `cp` lines below are from the Azurite run of the source spike, spike-cli-architecture.*
 
 ```sh
 blobfs cat /projects/notes.txt     # hello, blobfs
@@ -494,9 +489,9 @@ blobfs cp id:<notes-id> /projects/gamma/notes.txt    # id -> path
 ```
 
 ```
-cp: /projects/notes.txt -> /projects/copy.txt (id 01a1179a-000e-795d-b199-8edcd90d5741, 14 bytes, etag "0x1CAA514EEB69720")
-cp: /projects/data.csv -> /projects/gamma/data.csv (id 01a1179a-0035-73a2-b080-6a92123e265b, 8 bytes, etag "0x271931C1452FDC0")
-cp: /projects/notes.txt -> /projects/gamma/notes.txt (id 01a1179a-0054-7a69-88bf-2934aff8e05b, 14 bytes, etag "0x27B59A9B0839280")
+cp: /projects/notes.txt -> /projects/copy.txt (id 01a1188d-0c40-7448-adf8-1460ad2407a0, 14 bytes, etag "3c6c327597fd08441d05ba687f2412db")
+cp: /projects/data.csv -> /projects/gamma/data.csv (id 01a1188d-0c67-7425-b0d0-c27e5b341ae6, 8 bytes, etag "e5ebd4c02cefbe7955977c67ada242b7")
+cp: /projects/notes.txt -> /projects/gamma/notes.txt (id 01a1188d-0c86-76f9-8709-6ad1ca8c64fb, 14 bytes, etag "3c6c327597fd08441d05ba687f2412db")
 ```
 
 `cp` refuses a taken name (exit 1). The source opens only on the body's first read, so the
@@ -507,7 +502,7 @@ blobfs cp id:<notes-id> id:<gamma-id>
 ```
 
 ```
-blobfs cp: files: copy /projects/notes.txt into /projects/gamma: data: create file "notes.txt" in 01a117b5-b2bc-775d-8d2d-664c66393ce9: blobfs: name taken (constraint blobfs_uq_file_directory_name)
+blobfs cp: files: copy /projects/notes.txt into /projects/gamma: data: create file "notes.txt" in 01a1188d-070c-7ef7-b05e-c963d12519b6: blobfs: name taken (constraint blobfs_uq_file_directory_name)
 ```
 
 The label names the resolved paths, and ends `as <name>` when the copy takes a new name.
@@ -564,9 +559,9 @@ blobfs bookmark add --unit $unit id:<b-id>
 ```
 
 ```
-bookmark add: /team/docs/a.txt (file 01a1179a-0117-7d89-9fcf-99f6feea533b, unit 0199aaaa-0000-7000-8000-000000000001, active)
+bookmark add: /team/docs/a.txt (file 01a1188d-0d49-7406-ae06-7619beaf79b9, unit 0199aaaa-0000-7000-8000-000000000001, active)
 blobfs bookmark add: files: add bookmark of /team/docs/b.csv for unit 0199aaaa-0000-7000-8000-000000000001: the unit has an active bookmark already (constraint uq_bookmark_active)
-bookmark add: /team/docs/b.csv (file 01a1179a-0131-7eb6-afc8-bbf1a8e989d7, unit 0199aaaa-0000-7000-8000-000000000001, inactive)
+bookmark add: /team/docs/b.csv (file 01a1188d-0d69-7063-aa4c-bcdd39292c63, unit 0199aaaa-0000-7000-8000-000000000001, inactive)
 ```
 
 `bookmark add /` is a usage error (exit 2): the root is refused in `Validate`.
@@ -577,8 +572,8 @@ blobfs bookmark ls --unit $unit
 
 ```
 PATH              SIZE  STATUS     ACTIVE  UPDATED
-/team/docs/a.txt  14    available  active  2026-10-07 18:22:11
-/team/docs/b.csv  8     available  -       2026-10-07 18:22:11
+/team/docs/a.txt  14    available  active  2026-10-07 22:47:39
+/team/docs/b.csv  8     available  -       2026-10-07 22:47:39
 bookmarks: 2 on page 1 of size 20, total 2
 more: no
 ```
@@ -605,8 +600,8 @@ blobfs rm --recursive /team
 ```
 
 ```
-bookmark rm: /team/docs/a.txt (file 01a1179a-0117-7d89-9fcf-99f6feea533b, unit 0199aaaa-0000-7000-8000-000000000001)
-bookmark rm: /team/docs/b.csv (file 01a1179a-0131-7eb6-afc8-bbf1a8e989d7, unit 0199aaaa-0000-7000-8000-000000000001)
+bookmark rm: /team/docs/a.txt (file 01a1188d-0d49-7406-ae06-7619beaf79b9, unit 0199aaaa-0000-7000-8000-000000000001)
+bookmark rm: /team/docs/b.csv (file 01a1188d-0d69-7063-aa4c-bcdd39292c63, unit 0199aaaa-0000-7000-8000-000000000001)
 rm --recursive: /team (2 files, 2 directories)
 ```
 
@@ -661,8 +656,6 @@ does.
 
 ## Per-command dependencies
 
-*Output to be re-captured against SeaweedFS: the store errors and their timing below are from the Azurite run of the source spike, spike-cli-architecture.*
-
 Stop SeaweedFS alone. The compose service is `seaweedfs`:
 
 ```sh
@@ -678,8 +671,10 @@ blobfs bookmark ls --unit $unit              # an empty page
 blobfs scenario directories | tail -3        # ends with rmdir: /scenario-directories (id …)
 ```
 
-Object commands fail at start, once, naming the `store` node (exit 1). In the source each waited
-about 9 seconds on the Azure SDK's retries first:
+Object commands fail at start, once, naming the `store` node (exit 1). The store's start creates
+the bucket when it is missing, so its `CreateBucket` is the first request to fail; each command
+spends the AWS SDK's three attempts on it, with jittered backoff between them, and in this run
+took between 1.5 and 4.5 seconds:
 
 ```sh
 blobfs put $tmp/notes.txt /offline/notes.txt
@@ -688,9 +683,9 @@ blobfs scenario files
 ```
 
 ```
-blobfs put: store: storage unavailable: Put "http://127.0.0.1:10010/devstoreaccount1/cliarch?restype=container": dial tcp 127.0.0.1:10010: connect: connection refused
-blobfs cat: store: storage unavailable: context deadline exceeded
-blobfs scenario files: store: storage unavailable: Put "http://127.0.0.1:10010/devstoreaccount1/cliarch?restype=container": dial tcp 127.0.0.1:10010: connect: connection refused
+blobfs put: store: storage unavailable: operation error S3: CreateBucket, exceeded maximum number of attempts, 3, https response error StatusCode: 0, RequestID: , HostID: , request send failed, Put "http://127.0.0.1:8334/blobfs": dial tcp 127.0.0.1:8334: connect: connection refused
+blobfs cat: store: storage unavailable: operation error S3: CreateBucket, exceeded maximum number of attempts, 3, https response error StatusCode: 0, RequestID: , HostID: , request send failed, Put "http://127.0.0.1:8334/blobfs": dial tcp 127.0.0.1:8334: connect: connection refused
+blobfs scenario files: store: storage unavailable: operation error S3: CreateBucket, exceeded maximum number of attempts, 3, https response error StatusCode: 0, RequestID: , HostID: , request send failed, Put "http://127.0.0.1:8334/blobfs": dial tcp 127.0.0.1:8334: connect: connection refused
 ```
 
 Bring SeaweedFS back, and the same `put` succeeds:
@@ -707,7 +702,7 @@ nodes, so they still work:
 mise run app:down
 blobfs --help > /dev/null; echo $?   # 2
 blobfs scenario | tail -5            # the Scenarios: listing
-blobfs version                       # v0.0.0-20261007181626-ac2107ce8ab6
+blobfs version                       # v0.0.0-20261007224220-f2d5ba206e3c
 blobfs ls projects                   # the same usage error, exit 2
 blobfs mkdir /down                   # exit 1
 ```
@@ -740,18 +735,16 @@ blobfs scenario directories
 [2/11] Create /scenario-directories as the scenario unit's: mkdir --unit
   A directory created with a unit is top-level, and its owner row is written in
   the same transaction, so the unit's scope starts here.
-    mkdir: /scenario-directories (id 01a1179a-e5cf-7c3a-aefa-0ac7ad7fb952, unit 0199c0de-0000-7000-8000-0000000000de)
+    mkdir: /scenario-directories (id 01a1188d-6745-7669-a0b8-c8a355215d01, unit 0199c0de-0000-7000-8000-0000000000de)
 …
 [9/11] Move echo into alpha, then rename bravo to foxtrot: mv
   A destination that names an existing directory takes the source under its own
   name; one that names a new path renames. Both stay under the one top-level
   directory.
-    mv: /scenario-directories/echo -> /scenario-directories/alpha/echo (id 01a1179a-e5d8-7ab3-b655-6fbf760f9bfa)
-    mv: /scenario-directories/bravo -> /scenario-directories/foxtrot (id 01a1179a-e5d4-72dc-b808-c81e05d1d32c)
+    mv: /scenario-directories/echo -> /scenario-directories/alpha/echo (id 01a1188d-674f-73a8-be48-618567e6e976)
+    mv: /scenario-directories/bravo -> /scenario-directories/foxtrot (id 01a1188d-674b-73d0-92fd-69564c9f67f5)
 …
 ```
-
-*Output to be re-captured against SeaweedFS: the etag in step 3 below is from the Azurite run of the source spike, spike-cli-architecture.*
 
 ```sh
 blobfs scenario files
@@ -765,7 +758,7 @@ blobfs scenario files | tail -4   # the second run ends the same way
 [3/9] Put hello.txt from memory with no size, as put - streams stdin
   The row is committed pending before any byte is put; the store takes the body
   to its end, and the row is completed with the size and etag the store reports.
-    put: /scenario-files/docs/hello.txt (id 01a1179a-e630-7d32-aaed-f41d644b7782, 26 bytes, etag "0x24C634FA8CCCD20")
+    put: /scenario-files/docs/hello.txt (id 01a1188d-678b-7f76-aea8-b0b29699d8ae, 26 bytes, etag "1ab16aa1b95f5a9de65c45f84b675adb")
 …
 [9/9] Remove the working area and everything under it: rm --recursive
   The branch is marked deleting in one transaction, then swept until no work
@@ -802,24 +795,22 @@ ok  	github.com/JaimeStill/spike-s3-storage/app/scenario	(cached)
 
 `mise run app:integration` starts its own compose project, `spike-s3-storage-integration`, on
 5439 and 8335, runs the tagged tests, and removes the project with its volumes, pass or fail. The
-development stack is untouched. In the source it ran about 45 seconds:
-
-*Output to be re-captured against SeaweedFS: the timings below are from the Azurite run of the source spike, spike-cli-architecture.*
+development stack is untouched. It ran about 29 seconds:
 
 ```sh
 mise run app:integration
 ```
 
 ```
-ok  	github.com/JaimeStill/spike-s3-storage/app/cli	1.043s
-ok  	github.com/JaimeStill/spike-s3-storage/app/domain/files	1.720s
-ok  	github.com/JaimeStill/spike-s3-storage/app/graph	1.009s
-ok  	github.com/JaimeStill/spike-s3-storage/app/integration	38.732s
-ok  	github.com/JaimeStill/spike-s3-storage/app/internal/app	2.166s
-ok  	github.com/JaimeStill/spike-s3-storage/app/lifecycle	1.072s
-ok  	github.com/JaimeStill/spike-s3-storage/app/migrations	1.010s
-ok  	github.com/JaimeStill/spike-s3-storage/app/output	1.008s
-ok  	github.com/JaimeStill/spike-s3-storage/app/scenario	1.049s
+ok  	github.com/JaimeStill/spike-s3-storage/app/cli	1.041s
+ok  	github.com/JaimeStill/spike-s3-storage/app/domain/files	1.723s
+ok  	github.com/JaimeStill/spike-s3-storage/app/graph	1.010s
+ok  	github.com/JaimeStill/spike-s3-storage/app/integration	19.901s
+ok  	github.com/JaimeStill/spike-s3-storage/app/internal/app	2.077s
+ok  	github.com/JaimeStill/spike-s3-storage/app/lifecycle	1.093s
+ok  	github.com/JaimeStill/spike-s3-storage/app/migrations	1.007s
+ok  	github.com/JaimeStill/spike-s3-storage/app/output	1.007s
+ok  	github.com/JaimeStill/spike-s3-storage/app/scenario	1.048s
 ```
 
 What the `integration` package proves:
