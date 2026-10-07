@@ -12,7 +12,9 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
+	smithymiddleware "github.com/aws/smithy-go/middleware"
 
 	"github.com/standards-lab/go-storage"
 )
@@ -21,31 +23,30 @@ import (
 // empty, the type S3 stores for an object written without one.
 const defaultContentType = "application/octet-stream"
 
-// maxSinglePartSize is the largest body Put sends as one PutObject. Put
-// buffers the body in memory up to it before sending anything.
+// Put sends a body of at most one part as a single PutObject and a longer
+// one as a multipart upload through transfermanager, so the object appears
+// whole or not at all. It reads the body through a part and one byte more
+// into memory to decide. A body that fits is sent from that buffer, which
+// is seekable, as the SDK needs to sign a request over plain HTTP. A longer
+// body streams on: transfermanager uploads it a part at a time, holding a
+// few parts in memory, never the whole body.
 //
-// TODO(slice 4): a body past this size goes up as a multipart upload
-// through feature/s3/transfermanager; until then Put refuses it with an
-// error matching errors.ErrUnsupported and stores nothing.
-const maxSinglePartSize = 8 << 20
-
-// Put reads body to its end into memory and only then sends one PutObject,
-// so a failure of body, a Size mismatch included, sends nothing and leaves
-// any object at key unchanged. The buffered body is seekable, which the
-// SDK needs to sign a request over plain HTTP. A failure of body is
-// returned wrapped and unclassified.
+// A failure of body, or a body shorter or longer than a declared Size,
+// fails Put. Before the decision it has sent nothing; during a multipart
+// upload, transfermanager aborts the upload, and Put sends one more
+// AbortMultipartUpload for the same upload ID, because transfermanager
+// drops the error of an abort that fails after another failure, and S3
+// advises a repeat abort to free parts still in flight. A failure of body
+// is returned wrapped and unclassified; any other failure is classified.
 //
-// PutObject's answer carries the ETag but no Last-Modified, so a
-// HeadObject follows it for the ModifiedAt the other operations report.
-// When that HeadObject fails, or reports another ETag because a concurrent
-// writer replaced the object, the object is still written: Put succeeds and
-// takes ModifiedAt from the PutObject answer's Date header instead.
+// Neither PutObject's answer nor CompleteMultipartUpload's carries a
+// Last-Modified, so a HeadObject follows either for the ModifiedAt the
+// other operations report. When that HeadObject fails, or reports another
+// ETag because a concurrent writer replaced the object, the object is still
+// written: Put succeeds and takes ModifiedAt from the write answer's Date
+// header instead.
 func (c *Client) Put(ctx context.Context, key string, body io.Reader, opts storage.PutOptions) (storage.Object, error) {
 	if err := validateKey(key); err != nil {
-		return storage.Object{}, err
-	}
-	data, err := readBody(body, opts.Size)
-	if err != nil {
 		return storage.Object{}, err
 	}
 	contentType := opts.ContentType
@@ -53,68 +54,142 @@ func (c *Client) Put(ctx context.Context, key string, body io.Reader, opts stora
 		contentType = defaultContentType
 	}
 
-	out, err := c.s3.PutObject(ctx, &awss3.PutObjectInput{
-		Bucket:        aws.String(c.bucket),
-		Key:           aws.String(key),
-		Body:          bytes.NewReader(data),
-		ContentLength: aws.Int64(int64(len(data))),
-		ContentType:   aws.String(contentType),
-	})
+	src := &bodyReader{r: body, size: opts.Size}
+	var buf bytes.Buffer
+	if opts.Size > 0 {
+		buf.Grow(int(min(opts.Size, c.partSize+1)))
+	}
+	// One byte past a part shows whether the body needs more than one.
+	n, err := buf.ReadFrom(io.LimitReader(src, c.partSize+1))
 	if err != nil {
-		return storage.Object{}, classify(err)
+		return storage.Object{}, fmt.Errorf("s3: read body: %w", err)
 	}
 
-	obj := storage.Object{
-		Key:         key,
-		Size:        int64(len(data)),
-		ContentType: contentType,
-		ETag:        entityTag(out.ETag),
+	obj := storage.Object{Key: key, ContentType: contentType}
+	var meta smithymiddleware.Metadata
+	if n <= c.partSize {
+		out, err := c.s3.PutObject(ctx, &awss3.PutObjectInput{
+			Bucket:        aws.String(c.bucket),
+			Key:           aws.String(key),
+			Body:          bytes.NewReader(buf.Bytes()),
+			ContentLength: aws.Int64(n),
+			ContentType:   aws.String(contentType),
+		})
+		if err != nil {
+			return storage.Object{}, classify(err)
+		}
+		obj.ETag, meta = entityTag(out.ETag), out.ResultMetadata
+	} else {
+		in := &transfermanager.UploadObjectInput{
+			Bucket:      aws.String(c.bucket),
+			Key:         aws.String(key),
+			Body:        io.MultiReader(&buf, src),
+			ContentType: aws.String(contentType),
+		}
+		if opts.Size > 0 {
+			in.ContentLength = aws.Int64(opts.Size)
+		}
+		out, err := c.uploader.UploadObject(ctx, in)
+		if err != nil {
+			return storage.Object{}, c.failedUpload(ctx, key, src, err)
+		}
+		obj.ETag, meta = entityTag(out.ETag), out.ResultMetadata
 	}
+	obj.Size = src.n
+
 	head, headErr := c.s3.HeadObject(ctx, &awss3.HeadObjectInput{Bucket: aws.String(c.bucket), Key: aws.String(key)})
 	if headErr == nil && entityTag(head.ETag) == obj.ETag {
 		obj.ModifiedAt = aws.ToTime(head.LastModified)
-	} else if date, ok := awsmiddleware.GetServerTime(out.ResultMetadata); ok {
+	} else if date, ok := awsmiddleware.GetServerTime(meta); ok {
 		obj.ModifiedAt = date
 	}
 	return obj, nil
 }
 
-// readBody reads body through EOF and returns its bytes. A size above 0 is
-// the declared length: a body that ends short of it or runs past it is an
-// error, the short one wrapping io.ErrUnexpectedEOF. A body longer than
-// maxSinglePartSize is an error matching errors.ErrUnsupported.
-func readBody(body io.Reader, size int64) ([]byte, error) {
-	if size > maxSinglePartSize {
-		return nil, tooLargeForSinglePart(size)
+// failedUpload returns the error Put reports for a failed multipart upload,
+// after it repeats the abort of the upload transfermanager started. The
+// body's own failure is returned unclassified, as it is before any request;
+// any other is classified. A repeat abort that fails is named in the error
+// but never classifies it, since the upload's failure is what Put reports.
+func (c *Client) failedUpload(ctx context.Context, key string, src *bodyReader, err error) error {
+	var abortErr error
+	if mpErr, ok := errors.AsType[transfermanager.MultipartUploadError](err); ok && mpErr.UploadID() != "" {
+		abortErr = c.abortUpload(ctx, key, mpErr.UploadID())
 	}
-	// One byte past the bound shows whether the body runs past it.
-	bound := int64(maxSinglePartSize)
-	if size > 0 {
-		bound = size
+	if src.err != nil {
+		err = fmt.Errorf("s3: read body: %w", src.err)
+	} else {
+		err = classify(err)
 	}
-	var buf bytes.Buffer
-	if size > 0 {
-		buf.Grow(int(size))
+	if abortErr != nil {
+		return fmt.Errorf("%w (abort of multipart upload failed, parts may remain: %v)", err, abortErr)
 	}
-	n, err := buf.ReadFrom(io.LimitReader(body, bound+1))
-	if err != nil {
-		return nil, fmt.Errorf("s3: read body: %w", err)
-	}
-	switch {
-	case size > 0 && n > size:
-		return nil, fmt.Errorf("s3: read body: body is longer than the declared size (%d bytes)", size)
-	case size > 0 && n < size:
-		return nil, fmt.Errorf("s3: read body: body ended after %d bytes, short of the declared size (%d bytes): %w", n, size, io.ErrUnexpectedEOF)
-	case n > maxSinglePartSize:
-		return nil, tooLargeForSinglePart(n)
-	}
-	return buf.Bytes(), nil
+	return err
 }
 
-// tooLargeForSinglePart reports a body Put cannot send as one PutObject.
-func tooLargeForSinglePart(n int64) error {
-	return fmt.Errorf("s3: body of %d bytes or more exceeds the single-part limit (%d bytes); multipart upload not implemented: %w",
-		n, maxSinglePartSize, errors.ErrUnsupported)
+// abortUpload sends AbortMultipartUpload for uploadID on a context detached
+// from the caller's, bounded by abortTimeout, so a cancelled Put still
+// aborts. NoSuchUpload, the answer for an upload already aborted, is
+// success.
+func (c *Client) abortUpload(ctx context.Context, key, uploadID string) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), abortTimeout)
+	defer cancel()
+	_, err := c.s3.AbortMultipartUpload(ctx, &awss3.AbortMultipartUploadInput{
+		Bucket:   aws.String(c.bucket),
+		Key:      aws.String(key),
+		UploadId: aws.String(uploadID),
+	})
+	if err != nil && errorCode(err) != "NoSuchUpload" {
+		return classify(err)
+	}
+	return nil
+}
+
+// bodyReader reads a Put body, counting its bytes and holding it to a
+// declared size above 0: a body that ends short of the size fails with an
+// error wrapping io.ErrUnexpectedEOF, and one that runs past it fails as
+// soon as the byte past the size arrives. It keeps the first failure, the
+// body's own or a size mismatch, in err, so Put can tell a body failure
+// from a request's, and returns it again on every later Read.
+type bodyReader struct {
+	r    io.Reader
+	size int64
+	n    int64
+	err  error
+}
+
+func (b *bodyReader) Read(p []byte) (int, error) {
+	if b.err != nil {
+		return 0, b.err
+	}
+	if b.size > 0 {
+		if b.n >= b.size {
+			// At the declared size, one more byte shows a longer body.
+			var one [1]byte
+			k, err := io.ReadAtLeast(b.r, one[:], 1)
+			switch {
+			case k > 0:
+				b.err = fmt.Errorf("body is longer than the declared size (%d bytes)", b.size)
+			case err == io.EOF:
+				return 0, io.EOF
+			default:
+				b.err = err
+			}
+			return 0, b.err
+		}
+		if rest := b.size - b.n; int64(len(p)) > rest {
+			p = p[:rest]
+		}
+	}
+	k, err := b.r.Read(p)
+	b.n += int64(k)
+	if err == io.EOF && b.size > 0 && b.n < b.size {
+		err = fmt.Errorf("body ended after %d bytes, short of the declared size (%d bytes): %w", b.n, b.size, io.ErrUnexpectedEOF)
+	}
+	if err != nil && err != io.EOF {
+		b.err = err
+	}
+	return k, err
 }
 
 // Get opens the object at key with one GetObject request. NoSuchKey is

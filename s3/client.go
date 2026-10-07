@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
@@ -20,7 +22,21 @@ import (
 const (
 	optionRegion     = "region"
 	optionMaxRetries = "max_retries"
+	optionPartSize   = "part_size"
 )
+
+// The part_size option's default and bounds. S3 refuses a part, the last
+// one excepted, below 5 MiB, and any part above 5 GiB.
+const (
+	defaultPartSize = 8 << 20
+	minPartSize     = 5 << 20
+	maxPartSize     = 5 << 30
+)
+
+// abortTimeout bounds the AbortMultipartUpload that follows a failed
+// multipart upload. It runs on a context detached from the caller's, so a
+// cancelled Put still aborts what it started.
+const abortTimeout = 30 * time.Second
 
 // defaultRegion is the region option's default, and the one region whose
 // CreateBucket takes no location constraint.
@@ -31,9 +47,11 @@ var _ storage.Client = (*Client)(nil)
 // Client is the S3 provider: a storage.Client over one bucket, authenticated
 // with a static access key. A Client is safe for concurrent use.
 type Client struct {
-	s3     *awss3.Client
-	bucket string
-	region string
+	s3       *awss3.Client
+	uploader *transfermanager.Client
+	bucket   string
+	region   string
+	partSize int64
 }
 
 // New constructs a Client from a finalized config without I/O, as the
@@ -65,6 +83,10 @@ func New(cfg storage.Config) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	partSize, err := partSizeOption(cfg.Options)
+	if err != nil {
+		return nil, err
+	}
 
 	// awss3.New, unlike config.LoadDefaultConfig, reads no environment
 	// variable or shared file, so the Config is the client's only input.
@@ -80,7 +102,18 @@ func New(cfg storage.Config) (*Client, error) {
 		opts.BaseEndpoint = aws.String(cfg.Endpoint)
 		opts.UsePathStyle = true
 	}
-	return &Client{s3: awss3.New(opts), bucket: cfg.Container, region: region}, nil
+	client := awss3.New(opts)
+	// The threshold equal to the part size makes transfermanager take any
+	// body of at least one part as a multipart upload; Put sends a smaller
+	// one as a PutObject itself, so it only hands over a body longer than
+	// a part. FailTimeout gives the abort after a failure a fresh context,
+	// so the caller's cancellation does not cancel the abort too.
+	uploader := transfermanager.New(client, func(o *transfermanager.Options) {
+		o.PartSizeBytes = partSize
+		o.MultipartUploadThreshold = partSize
+		o.FailTimeout = abortTimeout
+	})
+	return &Client{s3: client, uploader: uploader, bucket: cfg.Container, region: region, partSize: partSize}, nil
 }
 
 // regionOption reads the region option, applying the default for an unset
@@ -109,6 +142,21 @@ func maxAttempts(options map[string]string) (int, error) {
 		return 0, fmt.Errorf("s3: option %s: %q is not a non-negative integer", optionMaxRetries, v)
 	}
 	return n + 1, nil
+}
+
+// partSizeOption reads the part_size option as a whole number of bytes
+// within the bounds S3 sets on a part, applying the default for an unset
+// key.
+func partSizeOption(options map[string]string) (int64, error) {
+	v, ok := options[optionPartSize]
+	if !ok {
+		return defaultPartSize, nil
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil || n < minPartSize || n > maxPartSize {
+		return 0, fmt.Errorf("s3: option %s: %q is not a byte count from %d (5 MiB) to %d (5 GiB)", optionPartSize, v, int64(minPartSize), int64(maxPartSize))
+	}
+	return n, nil
 }
 
 // validateEndpoint reports whether endpoint is an absolute http or https

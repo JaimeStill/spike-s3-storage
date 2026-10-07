@@ -121,6 +121,27 @@ func TestNew_RejectsBadMaxRetries(t *testing.T) {
 	}
 }
 
+// part_size takes a whole byte count within S3's part bounds, 5 MiB to
+// 5 GiB.
+func TestNew_RejectsBadPartSize(t *testing.T) {
+	for _, v := range []string{"x", "", "-1", "5242879", "5368709121", "8MiB"} {
+		t.Run(v, func(t *testing.T) {
+			_, err := s3.New(testConfig(t, "http://127.0.0.1:8333", map[string]string{"part_size": v}))
+			if err == nil || !strings.Contains(err.Error(), "part_size") {
+				t.Fatalf("New = %v, want an error naming part_size", err)
+			}
+		})
+	}
+}
+
+func TestNew_AcceptsPartSizeBounds(t *testing.T) {
+	for _, v := range []string{"5242880", "5368709120"} {
+		if _, err := s3.New(testConfig(t, "http://127.0.0.1:8333", map[string]string{"part_size": v})); err != nil {
+			t.Errorf("New with part_size %s = %v, want nil", v, err)
+		}
+	}
+}
+
 func TestNew_RejectsEmptyRegion(t *testing.T) {
 	_, err := s3.New(testConfig(t, "http://127.0.0.1:8333", map[string]string{"region": ""}))
 	if err == nil || !strings.Contains(err.Error(), "region") {

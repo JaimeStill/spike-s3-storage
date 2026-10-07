@@ -2,12 +2,18 @@ package s3_test
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
+	"net/url"
+	"slices"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"testing/iotest"
 	"time"
@@ -160,8 +166,8 @@ func TestPut_ModifiedAtFallsBackToDate(t *testing.T) {
 	}
 }
 
-// A body that disagrees with its declared size, that fails, or that runs
-// past the single-part limit sends nothing, so nothing is stored.
+// A body that disagrees with its declared size, or that fails, within the
+// first part sends nothing, so nothing is stored.
 func TestPut_BodyFailuresSendNothing(t *testing.T) {
 	broke := errors.New("source broke")
 	cases := []struct {
@@ -177,11 +183,8 @@ func TestPut_BodyFailuresSendNothing(t *testing.T) {
 			return strings.Contains(err.Error(), "longer than the declared size")
 		}},
 		{"body fails", iotest.ErrReader(broke), 0, func(err error) bool { return errors.Is(err, broke) }},
-		{"declared past the single-part limit", strings.NewReader("x"), 8<<20 + 1, func(err error) bool {
-			return errors.Is(err, errors.ErrUnsupported)
-		}},
-		{"body past the single-part limit", bytes.NewReader(make([]byte, 8<<20+1)), 0, func(err error) bool {
-			return errors.Is(err, errors.ErrUnsupported)
+		{"declared past a part, ends within one", bytes.NewReader(make([]byte, 8<<20)), 8<<20 + 1, func(err error) bool {
+			return errors.Is(err, io.ErrUnexpectedEOF) && strings.Contains(err.Error(), "short of the declared size")
 		}},
 	}
 	for _, tc := range cases {
@@ -203,8 +206,8 @@ func TestPut_BodyFailuresSendNothing(t *testing.T) {
 	}
 }
 
-// The single-part limit admits a body of exactly its size.
-func TestPut_BodyAtTheSinglePartLimit(t *testing.T) {
+// A body of exactly one part, at the default 8 MiB, is one PutObject.
+func TestPut_BodyOfOnePartIsOnePutObject(t *testing.T) {
 	svc := newService(t, byRoute(map[string]http.HandlerFunc{
 		"PUT " + testKeyPath:  stored(`"abc"`, lastModified),
 		"HEAD " + testKeyPath: object(`"abc"`, "application/octet-stream", ""),
@@ -218,6 +221,335 @@ func TestPut_BodyAtTheSinglePartLimit(t *testing.T) {
 	if obj.Size != 8<<20 {
 		t.Errorf("Put Size = %d, want %d", obj.Size, 8<<20)
 	}
+	if ops := operations(svc.Requests()); !slices.Equal(ops, []string{"PutObject", "HeadObject"}) {
+		t.Errorf("service saw %v, want one PutObject and a HeadObject", ops)
+	}
+}
+
+// The part size the multipart tests configure, S3's 5 MiB minimum, and the
+// upload ID the scripted service hands out.
+const (
+	testPartSize = 5 << 20
+	testUploadID = "upload-1"
+)
+
+// operation names the S3 operation a recorded request is, by its method
+// and query, as the multipart tests need to tell them apart.
+func operation(r recorded) string {
+	q, _ := url.ParseQuery(r.Query)
+	switch {
+	case r.Method == http.MethodPost && q.Has("uploads"):
+		return "CreateMultipartUpload"
+	case r.Method == http.MethodPut && q.Has("partNumber"):
+		return "UploadPart"
+	case r.Method == http.MethodPost && q.Has("uploadId"):
+		return "CompleteMultipartUpload"
+	case r.Method == http.MethodDelete && q.Has("uploadId"):
+		return "AbortMultipartUpload"
+	case r.Method == http.MethodPut:
+		return "PutObject"
+	case r.Method == http.MethodHead:
+		return "HeadObject"
+	}
+	return r.Method + " " + r.Path
+}
+
+// operations names each recorded request, in order.
+func operations(reqs []recorded) []string {
+	ops := make([]string, len(reqs))
+	for i, r := range reqs {
+		ops[i] = operation(r)
+	}
+	return ops
+}
+
+// count returns how many of ops are op.
+func count(ops []string, op string) int {
+	n := 0
+	for _, o := range ops {
+		if o == op {
+			n++
+		}
+	}
+	return n
+}
+
+// multipart scripts a gateway's multipart upload of key k under
+// testUploadID. A nil handler takes the success answer: CreateMultipartUpload
+// hands out the upload ID, UploadPart stores a part, CompleteMultipartUpload
+// answers with etag and a Date of lastModified plus a second, and
+// AbortMultipartUpload answers 204. HeadObject reports the object under
+// etag.
+type multipart struct {
+	etag     string
+	part     http.HandlerFunc
+	complete http.HandlerFunc
+	abort    http.HandlerFunc
+}
+
+func (m multipart) handler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != testKeyPath {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		h := map[string]http.HandlerFunc{
+			"CreateMultipartUpload": func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/xml")
+				_, _ = fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?><InitiateMultipartUploadResult><Bucket>%s</Bucket><Key>k</Key><UploadId>%s</UploadId></InitiateMultipartUploadResult>`, testBucket, testUploadID)
+			},
+			"UploadPart": orElse(m.part, func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("ETag", `"part-`+r.URL.Query().Get("partNumber")+`"`)
+				w.WriteHeader(http.StatusOK)
+			}),
+			"CompleteMultipartUpload": orElse(m.complete, func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/xml")
+				w.Header().Set("Date", lastModified.Add(time.Second).Format(http.TimeFormat))
+				_, _ = fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?><CompleteMultipartUploadResult><Bucket>%s</Bucket><Key>k</Key><ETag>%s</ETag></CompleteMultipartUploadResult>`, testBucket, html.EscapeString(m.etag))
+			}),
+			"AbortMultipartUpload": orElse(m.abort, status(http.StatusNoContent)),
+			"HeadObject":           object(m.etag, "application/octet-stream", ""),
+		}[operation(recorded{Method: r.Method, Query: r.URL.RawQuery})]
+		if h == nil {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		h(w, r)
+	}
+}
+
+// orElse returns h, or def when h is nil.
+func orElse(h, def http.HandlerFunc) http.HandlerFunc {
+	if h != nil {
+		return h
+	}
+	return def
+}
+
+// partLengths returns the decoded length of each UploadPart's content, in
+// part order.
+func partLengths(t *testing.T, reqs []recorded) []int64 {
+	t.Helper()
+	var lengths []int64
+	for _, r := range reqs {
+		if operation(r) != "UploadPart" {
+			continue
+		}
+		v := cmp.Or(r.Header.Get("X-Amz-Decoded-Content-Length"), r.Header.Get("Content-Length"))
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			t.Fatalf("UploadPart length %q: %v", v, err)
+		}
+		q, _ := url.ParseQuery(r.Query)
+		part, _ := strconv.Atoi(q.Get("partNumber"))
+		lengths = slices.Grow(lengths, part)[:max(len(lengths), part)]
+		lengths[part-1] = n
+	}
+	return lengths
+}
+
+// A body longer than one part, of unknown or declared size, is a multipart
+// upload in parts of the configured size, and Put reports the completed
+// object's ETag in its "<hex>-<parts>" form with the HeadObject's
+// ModifiedAt.
+func TestPut_LongerThanAPartIsAMultipartUpload(t *testing.T) {
+	cases := []struct {
+		name     string
+		size     int64
+		declared bool
+		parts    []int64
+	}{
+		{"one byte past a part", testPartSize + 1, false, []int64{testPartSize, 1}},
+		{"12 MiB unknown size", 12 << 20, false, []int64{testPartSize, testPartSize, 2 << 20}},
+		{"12 MiB declared", 12 << 20, true, []int64{testPartSize, testPartSize, 2 << 20}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			etag := fmt.Sprintf(`"0123456789abcdef0123456789abcdef-%d"`, len(tc.parts))
+			svc := newService(t, multipart{etag: etag}.handler())
+			c := newClient(t, testConfig(t, svc.endpoint(), map[string]string{"part_size": strconv.Itoa(testPartSize)}))
+
+			opts := storage.PutOptions{ContentType: "video/mp4"}
+			if tc.declared {
+				opts.Size = tc.size
+			}
+			obj, err := c.Put(t.Context(), "k", bytes.NewReader(make([]byte, tc.size)), opts)
+			if err != nil {
+				t.Fatalf("Put = %v, want nil", err)
+			}
+			want := storage.Object{Key: "k", Size: tc.size, ContentType: "video/mp4", ETag: etag, ModifiedAt: lastModified}
+			if obj != want {
+				t.Errorf("Put = %+v, want %+v", obj, want)
+			}
+
+			reqs := svc.Requests()
+			ops := operations(reqs)
+			if ops[0] != "CreateMultipartUpload" || ops[len(ops)-2] != "CompleteMultipartUpload" || ops[len(ops)-1] != "HeadObject" ||
+				count(ops, "UploadPart") != len(tc.parts) || count(ops, "AbortMultipartUpload") != 0 {
+				t.Fatalf("service saw %v, want CreateMultipartUpload, %d UploadParts, CompleteMultipartUpload, HeadObject", ops, len(tc.parts))
+			}
+			if got := reqs[0].Header.Get("Content-Type"); got != "video/mp4" {
+				t.Errorf("CreateMultipartUpload Content-Type = %q, want video/mp4", got)
+			}
+			if got := partLengths(t, reqs); !slices.Equal(got, tc.parts) {
+				t.Errorf("part lengths = %v, want %v", got, tc.parts)
+			}
+		})
+	}
+}
+
+// A multipart upload that fails, through its body, a size mismatch, a part,
+// or the completion, returns the failure and aborts the upload: once by
+// transfermanager and once more by Put. Nothing is completed.
+func TestPut_MultipartFailuresAbort(t *testing.T) {
+	broke := errors.New("source broke")
+	sevenMiB := func() io.Reader { return bytes.NewReader(make([]byte, 7<<20)) }
+	cases := []struct {
+		name     string
+		body     io.Reader
+		size     int64
+		m        multipart
+		complete bool
+		want     func(error) bool
+	}{
+		{"body fails midway", io.MultiReader(sevenMiB(), iotest.ErrReader(broke)), 0, multipart{}, false,
+			func(err error) bool { return errors.Is(err, broke) && !errors.Is(err, storage.ErrUnavailable) }},
+		{"shorter than declared", sevenMiB(), 12 << 20, multipart{}, false, func(err error) bool {
+			return errors.Is(err, io.ErrUnexpectedEOF) && strings.Contains(err.Error(), "short of the declared size")
+		}},
+		{"longer than declared", bytes.NewReader(make([]byte, 12<<20)), 11 << 20, multipart{}, false, func(err error) bool {
+			return strings.Contains(err.Error(), "longer than the declared size")
+		}},
+		{"part fails", sevenMiB(), 0, multipart{part: failWith(http.StatusServiceUnavailable, "ServiceUnavailable")}, false,
+			func(err error) bool { return errors.Is(err, storage.ErrUnavailable) }},
+		{"completion fails", sevenMiB(), 0, multipart{complete: failWith(http.StatusInternalServerError, "InternalError")}, true,
+			func(err error) bool { return errors.Is(err, storage.ErrUnavailable) }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.m.etag = `"never"`
+			svc := newService(t, tc.m.handler())
+			c := newClient(t, testConfig(t, svc.endpoint(), map[string]string{"part_size": strconv.Itoa(testPartSize)}))
+
+			_, err := c.Put(t.Context(), "k", tc.body, storage.PutOptions{Size: tc.size})
+			if err == nil || !tc.want(err) {
+				t.Fatalf("Put = %v, want the upload's failure", err)
+			}
+			if strings.Contains(err.Error(), "parts may remain") {
+				t.Errorf("Put = %v, want no abort failure", err)
+			}
+			wantAborts(t, svc.Requests(), 2, tc.complete)
+		})
+	}
+}
+
+// wantAborts asserts the service saw aborts AbortMultipartUploads, each for
+// testUploadID, after the upload, and a CompleteMultipartUpload only when
+// completed.
+func wantAborts(t *testing.T, reqs []recorded, aborts int, completed bool) {
+	t.Helper()
+	ops := operations(reqs)
+	if count(ops, "AbortMultipartUpload") != aborts || (count(ops, "CompleteMultipartUpload") == 1) != completed ||
+		count(ops, "HeadObject") != 0 {
+		t.Fatalf("service saw %v, want %d AbortMultipartUploads, a completion %v, and no HeadObject", ops, aborts, completed)
+	}
+	for _, r := range reqs {
+		if operation(r) != "AbortMultipartUpload" {
+			continue
+		}
+		if q, _ := url.ParseQuery(r.Query); q.Get("uploadId") != testUploadID {
+			t.Errorf("AbortMultipartUpload for upload %q, want %q", q.Get("uploadId"), testUploadID)
+		}
+	}
+}
+
+// cancelAfter reads r and cancels the context once n bytes have been read,
+// as a caller that gives up midway through a Put does.
+type cancelAfter struct {
+	r      io.Reader
+	n      int64
+	cancel context.CancelFunc
+}
+
+func (c *cancelAfter) Read(p []byte) (int, error) {
+	k, err := c.r.Read(p)
+	if c.n -= int64(k); c.n <= 0 {
+		c.cancel()
+	}
+	return k, err
+}
+
+// A caller that cancels midway through a multipart upload gets its
+// cancellation back, unclassified, and the upload is still aborted on a
+// context of its own.
+func TestPut_CancelledMultipartStillAborts(t *testing.T) {
+	svc := newService(t, multipart{etag: `"never"`}.handler())
+	c := newClient(t, testConfig(t, svc.endpoint(), map[string]string{"part_size": strconv.Itoa(testPartSize)}))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	body := &cancelAfter{r: bytes.NewReader(make([]byte, 12<<20)), n: 7 << 20, cancel: cancel}
+	_, err := c.Put(ctx, "k", body, storage.PutOptions{})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Put = %v, want context.Canceled", err)
+	}
+	if errors.Is(err, storage.ErrUnavailable) {
+		t.Errorf("Put = %v, want the cancellation unclassified", err)
+	}
+	wantAborts(t, svc.Requests(), 2, false)
+}
+
+// transfermanager drops the error of an abort that fails after a part
+// failed, so Put's own abort is what frees the upload. When that one fails
+// too, Put names it in the error, which keeps the part failure's
+// classification.
+func TestPut_FailedAbortIsRepeated(t *testing.T) {
+	for name, tc := range map[string]struct {
+		abortStatus []int
+		remain      bool
+	}{
+		"repeat succeeds": {[]int{http.StatusInternalServerError, http.StatusNoContent}, false},
+		"repeat fails":    {[]int{http.StatusInternalServerError, http.StatusInternalServerError}, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var mu sync.Mutex
+			aborts := 0
+			m := multipart{
+				etag: `"never"`,
+				part: failWith(http.StatusForbidden, "AccessDenied"),
+				abort: func(w http.ResponseWriter, r *http.Request) {
+					mu.Lock()
+					code := tc.abortStatus[aborts]
+					aborts++
+					mu.Unlock()
+					if code == http.StatusNoContent {
+						w.WriteHeader(code)
+						return
+					}
+					s3Error(w, r, code, "InternalError")
+				},
+			}
+			svc := newService(t, m.handler())
+			c := newClient(t, testConfig(t, svc.endpoint(), map[string]string{"part_size": strconv.Itoa(testPartSize)}))
+
+			_, err := c.Put(t.Context(), "k", bytes.NewReader(make([]byte, 7<<20)), storage.PutOptions{})
+			if errorCode(err) != "AccessDenied" || errors.Is(err, storage.ErrUnavailable) {
+				t.Fatalf("Put = %v, want the part's AccessDenied, unclassified", err)
+			}
+			if got := strings.Contains(err.Error(), "parts may remain"); got != tc.remain {
+				t.Errorf("Put = %v, want an abort failure named: %v", err, tc.remain)
+			}
+			wantAborts(t, svc.Requests(), 2, false)
+		})
+	}
+}
+
+// errorCode returns the S3 error code err carries, or "".
+func errorCode(err error) string {
+	if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
+		return apiErr.ErrorCode()
+	}
+	return ""
 }
 
 // Every object operation checks its key against Capabilities before it

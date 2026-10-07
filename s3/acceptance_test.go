@@ -8,8 +8,12 @@ import (
 	"errors"
 	"io"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -103,7 +107,8 @@ func deleteBucket(ctx context.Context, c *awss3.Client, bucket string) {
 
 // TestAcceptance_Conformance runs the conformance suite over the provider
 // against a real gateway. The suite creates the bucket itself. Its 3 MiB
-// bodies fit under the single-part limit, so each goes up as one PutObject.
+// bodies fit in one part at the default 8 MiB, so each goes up as one
+// PutObject; the multipart tests below cover the longer path.
 func TestAcceptance_Conformance(t *testing.T) {
 	cfg := acceptanceConfig(t)
 	storagetest.Run(t, func(t *testing.T) storage.Client {
@@ -338,5 +343,235 @@ func TestAcceptance_EnsureContainerExisting(t *testing.T) {
 	}
 	if versioning.Status != types.BucketVersioningStatusEnabled {
 		t.Errorf("versioning after EnsureContainer = %q, want it still Enabled", versioning.Status)
+	}
+}
+
+// acceptancePartSize is the part size the multipart acceptance tests
+// configure, S3's 5 MiB minimum, so a 12 MiB body goes up in three parts.
+const acceptancePartSize = 5 << 20
+
+// multipartClient returns a provider client over cfg's bucket, created,
+// with the part size set to acceptancePartSize.
+func multipartClient(t *testing.T, cfg storage.Config) storage.Client {
+	t.Helper()
+	cfg.Options = map[string]string{"part_size": strconv.Itoa(acceptancePartSize)}
+	client := newClient(t, cfg)
+	if err := client.EnsureContainer(t.Context()); err != nil {
+		t.Fatalf("EnsureContainer: %v", err)
+	}
+	return client
+}
+
+// randomBytes returns n random bytes, so each part's content differs.
+func randomBytes(t *testing.T, n int) []byte {
+	t.Helper()
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		t.Fatalf("random content: %v", err)
+	}
+	return b
+}
+
+// openUploads returns the multipart uploads the gateway lists as in
+// progress for key, read with a raw ListMultipartUploads.
+func openUploads(t *testing.T, raw *awss3.Client, bucket, key string) []types.MultipartUpload {
+	t.Helper()
+	out, err := raw.ListMultipartUploads(t.Context(), &awss3.ListMultipartUploadsInput{Bucket: aws.String(bucket), Prefix: aws.String(key)})
+	if err != nil {
+		t.Fatalf("ListMultipartUploads: %v", err)
+	}
+	var uploads []types.MultipartUpload
+	for _, u := range out.Uploads {
+		if aws.ToString(u.Key) == key {
+			uploads = append(uploads, u)
+		}
+	}
+	return uploads
+}
+
+// wantAbsent asserts key has no object: Stat answers ErrNotFound and List
+// does not name it.
+func wantAbsent(t *testing.T, client storage.Client, key string) {
+	t.Helper()
+	if _, err := client.Stat(t.Context(), key); !errors.Is(err, storage.ErrNotFound) {
+		t.Errorf("Stat(%q) = %v, want ErrNotFound", key, err)
+	}
+	page, err := client.List(t.Context(), storage.ListOptions{})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	for _, obj := range page.Objects {
+		if obj.Key == key {
+			t.Errorf("List names %q (%+v), want it absent", key, obj)
+		}
+	}
+}
+
+// pausingBody reads r and pauses once, after its first at bytes: it closes
+// reached and blocks until release closes, so a test can look at the
+// gateway while a multipart upload is in progress.
+type pausingBody struct {
+	r       io.Reader
+	at      int64
+	reached chan struct{}
+	release chan struct{}
+	read    int64
+	paused  bool
+}
+
+func (b *pausingBody) Read(p []byte) (int, error) {
+	if !b.paused {
+		if b.read >= b.at {
+			close(b.reached)
+			<-b.release
+			b.paused = true
+		} else if rest := b.at - b.read; int64(len(p)) > rest {
+			p = p[:rest]
+		}
+	}
+	k, err := b.r.Read(p)
+	b.read += int64(k)
+	return k, err
+}
+
+// TestAcceptance_MultipartInvisibleUntilComplete puts a 12 MiB body of
+// unknown size at 5 MiB parts. The body pauses at 6 MiB, after Put has
+// decided on a multipart upload, started it, and handed part 1 over: the
+// gateway lists the upload in progress, while Stat answers ErrNotFound and
+// List lacks the key. Released, Put completes with a multipart ETag, which
+// Get, Stat, and List then report with the content.
+func TestAcceptance_MultipartInvisibleUntilComplete(t *testing.T) {
+	cfg := acceptanceConfig(t)
+	client := multipartClient(t, cfg)
+	raw := rawClient(cfg.Endpoint)
+	key := "big/video.bin"
+	content := randomBytes(t, 12<<20)
+
+	body := &pausingBody{r: bytes.NewReader(content), at: 6 << 20, reached: make(chan struct{}), release: make(chan struct{})}
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(body.release) }) }
+	t.Cleanup(release)
+
+	type result struct {
+		obj storage.Object
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		obj, err := client.Put(t.Context(), key, body, storage.PutOptions{ContentType: "video/mp4"})
+		done <- result{obj, err}
+	}()
+
+	select {
+	case <-body.reached:
+	case res := <-done:
+		t.Fatalf("Put returned before the body paused: %+v, %v", res.obj, res.err)
+	case <-time.After(time.Minute):
+		t.Fatal("body never reached the pause")
+	}
+	uploads := openUploads(t, raw, cfg.Container, key)
+	if len(uploads) != 1 {
+		t.Fatalf("ListMultipartUploads while paused lists %d uploads for %q, want 1 in progress", len(uploads), key)
+	}
+	t.Logf("in progress: UploadId=%q Initiated=%v", aws.ToString(uploads[0].UploadId), aws.ToTime(uploads[0].Initiated))
+	wantAbsent(t, client, key)
+
+	release()
+	var res result
+	select {
+	case res = <-done:
+	case <-time.After(time.Minute):
+		t.Fatal("Put never returned after the release")
+	}
+	if res.err != nil {
+		t.Fatalf("Put = %v, want nil", res.err)
+	}
+	put := res.obj
+	t.Logf("Put:  ETag=%q ModifiedAt=%v Size=%d", put.ETag, put.ModifiedAt, put.Size)
+	if !regexp.MustCompile(`^"[0-9a-f]{32}-3"$`).MatchString(put.ETag) {
+		t.Errorf("Put ETag = %q, want a quoted multipart ETag of 3 parts", put.ETag)
+	}
+	if put.Size != int64(len(content)) || put.ContentType != "video/mp4" || put.ModifiedAt.IsZero() {
+		t.Errorf("Put = %+v, want Size %d, ContentType video/mp4, and a ModifiedAt", put, len(content))
+	}
+
+	stat, err := client.Stat(t.Context(), key)
+	if err != nil {
+		t.Fatalf("Stat after Put: %v", err)
+	}
+	blob, err := client.Get(t.Context(), key, storage.GetOptions{})
+	if err != nil {
+		t.Fatalf("Get after Put: %v", err)
+	}
+	got, err := io.ReadAll(blob.Body)
+	_ = blob.Body.Close()
+	if err != nil {
+		t.Fatalf("read Get body: %v", err)
+	}
+	if !bytes.Equal(got, content) {
+		t.Errorf("Get returned %d bytes, want the %d put", len(got), len(content))
+	}
+	page, err := client.List(t.Context(), storage.ListOptions{Prefix: "big/"})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(page.Objects) != 1 || page.Objects[0].Key != key {
+		t.Fatalf("List = %+v, want the one key %q", page.Objects, key)
+	}
+	t.Logf("Stat: ETag=%q ModifiedAt=%v Size=%d ContentType=%q", stat.ETag, stat.ModifiedAt, stat.Size, stat.ContentType)
+	t.Logf("List: ETag=%q ModifiedAt=%v Size=%d", page.Objects[0].ETag, page.Objects[0].ModifiedAt, page.Objects[0].Size)
+	for op, obj := range map[string]storage.Object{"Get": {ETag: blob.ETag, ModifiedAt: blob.ModifiedAt, Size: blob.Size},
+		"Stat": stat, "List": page.Objects[0]} {
+		if obj.ETag != put.ETag || !obj.ModifiedAt.Equal(put.ModifiedAt) || obj.Size != put.Size {
+			t.Errorf("%s ETag=%q ModifiedAt=%v Size=%d, want %q, %v, and %d as Put reported", op, obj.ETag, obj.ModifiedAt, obj.Size, put.ETag, put.ModifiedAt, put.Size)
+		}
+	}
+	if uploads := openUploads(t, raw, cfg.Container, key); len(uploads) != 0 {
+		t.Errorf("ListMultipartUploads after Put lists %d uploads for %q, want none", len(uploads), key)
+	}
+}
+
+// TestAcceptance_MultipartFailureLeavesNothing fails a 12 MiB multipart Put
+// partway in three ways: the body fails, the body ends short of its
+// declared size, and the caller cancels. Each returns its failure and
+// leaves no object and no open multipart upload for the key.
+func TestAcceptance_MultipartFailureLeavesNothing(t *testing.T) {
+	cfg := acceptanceConfig(t)
+	client := multipartClient(t, cfg)
+	raw := rawClient(cfg.Endpoint)
+	broke := errors.New("source broke")
+
+	cases := []struct {
+		name string
+		body func(t *testing.T, cancel context.CancelFunc) io.Reader
+		size int64
+		want func(error) bool
+	}{
+		{"body fails midway", func(t *testing.T, _ context.CancelFunc) io.Reader {
+			return io.MultiReader(bytes.NewReader(randomBytes(t, 11<<20)), iotest.ErrReader(broke))
+		}, 0, func(err error) bool { return errors.Is(err, broke) }},
+		{"shorter than declared", func(t *testing.T, _ context.CancelFunc) io.Reader {
+			return bytes.NewReader(randomBytes(t, 11<<20))
+		}, 12 << 20, func(err error) bool { return errors.Is(err, io.ErrUnexpectedEOF) }},
+		{"caller cancels", func(t *testing.T, cancel context.CancelFunc) io.Reader {
+			return &cancelAfter{r: bytes.NewReader(randomBytes(t, 12<<20)), n: 11 << 20, cancel: cancel}
+		}, 0, func(err error) bool { return errors.Is(err, context.Canceled) }},
+	}
+	for i, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			key := "failed/" + strconv.Itoa(i)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			_, err := client.Put(ctx, key, tc.body(t, cancel), storage.PutOptions{Size: tc.size})
+			if err == nil || !tc.want(err) {
+				t.Fatalf("Put = %v, want the failure", err)
+			}
+			t.Logf("Put: %v", err)
+			wantAbsent(t, client, key)
+			if uploads := openUploads(t, raw, cfg.Container, key); len(uploads) != 0 {
+				t.Errorf("ListMultipartUploads after the failure lists %d uploads for %q, want none", len(uploads), key)
+			}
+		})
 	}
 }
