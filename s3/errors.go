@@ -38,6 +38,8 @@ func classify(err error) error {
 	switch code := errorCode(err); {
 	case code == "NoSuchBucket":
 		return fmt.Errorf("%w: %w", storage.ErrContainerNotFound, err)
+	case code == "NoSuchKey":
+		return fmt.Errorf("%w: %w", storage.ErrNotFound, err)
 	case respErr.HTTPStatusCode() >= http.StatusInternalServerError,
 		code == "SlowDown", code == "ServiceUnavailable", code == "InternalError":
 		return fmt.Errorf("%w: %w", storage.ErrUnavailable, err)

@@ -420,25 +420,3 @@ func TestCapabilities_MaxKeyLength(t *testing.T) {
 		t.Errorf("MaxKeyLength = %d, want 1024", got)
 	}
 }
-
-// The object operations are stubs until they are built; each says so with
-// an error matching errors.ErrUnsupported and sends nothing.
-func TestObjectOperations_NotImplemented(t *testing.T) {
-	svc := newService(t, status(http.StatusOK))
-	c := newClient(t, testConfig(t, svc.endpoint(), nil))
-	ctx := t.Context()
-
-	_, putErr := c.Put(ctx, "k", strings.NewReader("x"), storage.PutOptions{})
-	_, getErr := c.Get(ctx, "k", storage.GetOptions{})
-	_, statErr := c.Stat(ctx, "k")
-	deleteErr := c.Delete(ctx, "k")
-	_, listErr := c.List(ctx, storage.ListOptions{})
-	for op, err := range map[string]error{"Put": putErr, "Get": getErr, "Stat": statErr, "Delete": deleteErr, "List": listErr} {
-		if !errors.Is(err, errors.ErrUnsupported) || !strings.Contains(err.Error(), op+" not implemented") {
-			t.Errorf("%s = %v, want a not-implemented error matching errors.ErrUnsupported", op, err)
-		}
-	}
-	if n := len(svc.Requests()); n != 0 {
-		t.Errorf("service saw %d requests, want none", n)
-	}
-}

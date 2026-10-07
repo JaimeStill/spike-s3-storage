@@ -1,10 +1,12 @@
 package s3_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -16,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"github.com/standards-lab/go-storage"
+	"github.com/standards-lab/go-storage/storagetest"
 )
 
 // endpointEnv names the S3 gateway URL the acceptance tests run against, for
@@ -98,6 +101,43 @@ func deleteBucket(ctx context.Context, c *awss3.Client, bucket string) {
 	_, _ = c.DeleteBucket(ctx, &awss3.DeleteBucketInput{Bucket: aws.String(bucket)})
 }
 
+// TestAcceptance_Conformance runs the conformance suite over the provider
+// against a real gateway. The suite creates the bucket itself. Its 3 MiB
+// bodies fit under the single-part limit, so each goes up as one PutObject.
+func TestAcceptance_Conformance(t *testing.T) {
+	cfg := acceptanceConfig(t)
+	storagetest.Run(t, func(t *testing.T) storage.Client {
+		return newClient(t, cfg)
+	})
+}
+
+// TestAcceptance_MissingContainer runs the missing-container check against a
+// real gateway, over a bucket the test names and never creates.
+func TestAcceptance_MissingContainer(t *testing.T) {
+	cfg := acceptanceConfig(t)
+	storagetest.RunMissingContainer(t, func(t *testing.T) storage.Client {
+		return newClient(t, cfg)
+	})
+}
+
+// TestAcceptance_StatMissingBucket proves that Stat over a bucket that does
+// not exist reports storage.ErrContainerNotFound and never
+// storage.ErrNotFound, though the gateway answers its HeadObject with the
+// same bare 404 it gives a missing key in an existing bucket.
+func TestAcceptance_StatMissingBucket(t *testing.T) {
+	cfg := acceptanceConfig(t)
+	client := newClient(t, cfg)
+
+	_, err := client.Stat(t.Context(), "absent/key.txt")
+	if !errors.Is(err, storage.ErrContainerNotFound) {
+		t.Fatalf("Stat over a missing bucket = %v, want ErrContainerNotFound", err)
+	}
+	if errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("Stat over a missing bucket = %v, want it not to match ErrNotFound", err)
+	}
+	t.Logf("Stat over a missing bucket: %v", err)
+}
+
 // TestAcceptance_StoreStart drives storage.Store over the provider against
 // a gateway without the bucket: the bucket is missing before Start, and
 // Start creates it, probes it, and reports ready.
@@ -127,6 +167,82 @@ func TestAcceptance_StoreStart(t *testing.T) {
 	}
 	if _, err := rawClient(cfg.Endpoint).HeadBucket(ctx, &awss3.HeadBucketInput{Bucket: aws.String(cfg.Container)}); err != nil {
 		t.Fatalf("HeadBucket after Start = %v, want the bucket to exist", err)
+	}
+}
+
+// TestAcceptance_StoreObjects drives the object operations through
+// storage.Store against the gateway and logs the ETag and ModifiedAt each
+// one reports, so a run records what the gateway answered.
+func TestAcceptance_StoreObjects(t *testing.T) {
+	cfg := acceptanceConfig(t)
+	store := storage.New(newClient(t, cfg), cfg)
+	if err := store.Start(t.Context()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.Shutdown(context.Background()); err != nil {
+			t.Errorf("Shutdown: %v", err)
+		}
+	})
+
+	ctx := t.Context()
+	key := "store/hello.txt"
+	content := []byte("hello through the store")
+	put, err := store.Put(ctx, key, bytes.NewReader(content), storage.PutOptions{ContentType: "text/plain", Size: int64(len(content))})
+	if err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+	t.Logf("Put:  ETag=%q ModifiedAt=%v", put.ETag, put.ModifiedAt)
+
+	blob, err := store.Get(ctx, key, storage.GetOptions{})
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	data, err := io.ReadAll(blob.Body)
+	_ = blob.Body.Close()
+	if err != nil {
+		t.Fatalf("read Get body: %v", err)
+	}
+	t.Logf("Get:  ETag=%q ModifiedAt=%v ContentType=%q Size=%d", blob.ETag, blob.ModifiedAt, blob.ContentType, blob.Size)
+	if !bytes.Equal(data, content) {
+		t.Errorf("Get returned %q, want %q", data, content)
+	}
+
+	stat, err := store.Stat(ctx, key)
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+	t.Logf("Stat: ETag=%q ModifiedAt=%v ContentType=%q Size=%d", stat.ETag, stat.ModifiedAt, stat.ContentType, stat.Size)
+
+	page, err := store.List(ctx, storage.ListOptions{Prefix: "store/"})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	for _, obj := range page.Objects {
+		t.Logf("List: Key=%q ETag=%q ModifiedAt=%v Size=%d", obj.Key, obj.ETag, obj.ModifiedAt, obj.Size)
+	}
+	if len(page.Objects) != 1 || page.Objects[0].Key != key {
+		t.Fatalf("List = %+v, want the one key %q", page.Objects, key)
+	}
+
+	for op, etag := range map[string]string{"Get": blob.ETag, "Stat": stat.ETag, "List": page.Objects[0].ETag} {
+		if etag != put.ETag {
+			t.Errorf("%s ETag = %q, want %q as Put reported", op, etag, put.ETag)
+		}
+	}
+	for op, at := range map[string]time.Time{"Get": blob.ModifiedAt, "Stat": stat.ModifiedAt, "List": page.Objects[0].ModifiedAt} {
+		if !at.Equal(put.ModifiedAt) {
+			t.Errorf("%s ModifiedAt = %v, want %v as Put reported", op, at, put.ModifiedAt)
+		}
+	}
+
+	for range 2 {
+		if err := store.Delete(ctx, key); err != nil {
+			t.Fatalf("Delete: %v", err)
+		}
+	}
+	if _, err := store.Stat(ctx, key); !errors.Is(err, storage.ErrNotFound) {
+		t.Errorf("Stat after Delete = %v, want ErrNotFound", err)
 	}
 }
 
