@@ -7,31 +7,31 @@ $ blobfs scenario directories
 [2/11] Create /scenario-directories as the scenario unit's: mkdir --unit
   A directory created with a unit is top-level, and its owner row is written in
   the same transaction, so the unit's scope starts here.
-    mkdir: /scenario-directories (id 01a11865-d6df-729e-89ea-5e4e5222613f, unit 0199c0de-0000-7000-8000-0000000000de)
+    mkdir: /scenario-directories (id 01a11892-f681-7074-8ee8-1cf91909620c, unit 0199c0de-0000-7000-8000-0000000000de)
 
 [3/11] List the unit's top-level directories: ls / --unit
   At the root, a unit's listing is its own top-level directories, read through
   the owner rows.
     KIND  NAME                  SIZE  STATUS  UPDATED              ID
-    dir   scenario-directories  -     -       2026-10-07 22:04:49  01a11865-d6df-729e-89ea-5e4e5222613f
+    dir   scenario-directories  -     -       2026-10-07 22:54:06  01a11892-f681-7074-8ee8-1cf91909620c
     directories: 1 on page 1 of size 20, total 1
     more: no
     files: 0 on page 1 of size 20, total 0
     more: no
 
 [4/11] Create five directories under the working area: mkdir
-    mkdir: /scenario-directories/alpha (id 01a11865-d6ea-78bc-bc9d-750ab31c1be6)
-    mkdir: /scenario-directories/bravo (id 01a11865-d6ec-7253-843b-9659d43547bf)
-    mkdir: /scenario-directories/charlie (id 01a11865-d6ed-7f35-9854-1052257b814b)
-    mkdir: /scenario-directories/delta (id 01a11865-d6ef-7a86-8599-4e747999eac4)
-    mkdir: /scenario-directories/echo (id 01a11865-d6f0-7ea9-8fd0-b6c0f68dd332)
+    mkdir: /scenario-directories/alpha (id 01a11892-f684-7ca9-965a-4cad168668ac)
+    mkdir: /scenario-directories/bravo (id 01a11892-f686-75fa-9ffa-58c326e6e033)
+    mkdir: /scenario-directories/charlie (id 01a11892-f687-7dac-8742-0bebc5da0323)
+    mkdir: /scenario-directories/delta (id 01a11892-f689-708a-98aa-8c4b71bfb446)
+    mkdir: /scenario-directories/echo (id 01a11892-f689-7f1e-8c58-e7a73315c7ff)
 
 [5/11] List the first page of two, by name descending: ls --size 2 --sort name:desc
   A page by number counts the total; the next-dirs line is the cursor that
   continues the directory half.
     KIND  NAME   SIZE  STATUS  UPDATED              ID
-    dir   echo   -     -       2026-10-07 22:04:49  01a11865-d6f0-7ea9-8fd0-b6c0f68dd332
-    dir   delta  -     -       2026-10-07 22:04:49  01a11865-d6ef-7a86-8599-4e747999eac4
+    dir   echo   -     -       2026-10-07 22:54:06  01a11892-f689-7f1e-8c58-e7a73315c7ff
+    dir   delta  -     -       2026-10-07 22:54:06  01a11892-f689-708a-98aa-8c4b71bfb446
     directories: 2 on page 1 of size 2, total 5
     more: yes
     next-dirs: aKx653sidiI6MSwiYmFzZSI6ImRpcmVjdG9yeV9jaGlsZHJlbiIsInRlcm1zIjpbIm5hbWUiXSwiZGVzYyI6dHJ1ZSwiZmlsdGVycyI6Ilt7XCJGaWVsZFwiOlwic3RhdHVzXCIsXCJPcFwiOlwibmVcIixcIlZhbHVlXCI6XCJkZWxldGluZ1wifV0iLCJ2YWx1ZXMiOlsiZGVsdGEiXX0
@@ -42,8 +42,8 @@ $ blobfs scenario directories
   The cursor continues after the last row the first page showed, under the same
   sort; a continued half counts nothing.
     KIND  NAME     SIZE  STATUS  UPDATED              ID
-    dir   charlie  -     -       2026-10-07 22:04:49  01a11865-d6ed-7f35-9854-1052257b814b
-    dir   bravo    -     -       2026-10-07 22:04:49  01a11865-d6ec-7253-843b-9659d43547bf
+    dir   charlie  -     -       2026-10-07 22:54:06  01a11892-f687-7dac-8742-0bebc5da0323
+    dir   bravo    -     -       2026-10-07 22:54:06  01a11892-f686-75fa-9ffa-58c326e6e033
     directories: 2 after the cursor, size 2, total not counted
     more: yes
     next-dirs: XxO4tHsidiI6MSwiYmFzZSI6ImRpcmVjdG9yeV9jaGlsZHJlbiIsInRlcm1zIjpbIm5hbWUiXSwiZGVzYyI6dHJ1ZSwiZmlsdGVycyI6Ilt7XCJGaWVsZFwiOlwic3RhdHVzXCIsXCJPcFwiOlwibmVcIixcIlZhbHVlXCI6XCJkZWxldGluZ1wifV0iLCJ2YWx1ZXMiOlsiYnJhdm8iXX0
@@ -52,9 +52,9 @@ $ blobfs scenario directories
 
 [7/11] Filter by name: ls --filter name:in:alpha,charlie,echo
     KIND  NAME     SIZE  STATUS  UPDATED              ID
-    dir   alpha    -     -       2026-10-07 22:04:49  01a11865-d6ea-78bc-bc9d-750ab31c1be6
-    dir   charlie  -     -       2026-10-07 22:04:49  01a11865-d6ed-7f35-9854-1052257b814b
-    dir   echo     -     -       2026-10-07 22:04:49  01a11865-d6f0-7ea9-8fd0-b6c0f68dd332
+    dir   alpha    -     -       2026-10-07 22:54:06  01a11892-f684-7ca9-965a-4cad168668ac
+    dir   charlie  -     -       2026-10-07 22:54:06  01a11892-f687-7dac-8742-0bebc5da0323
+    dir   echo     -     -       2026-10-07 22:54:06  01a11892-f689-7f1e-8c58-e7a73315c7ff
     directories: 3 on page 1 of size 20, total 3
     more: no
     files: 0 on page 1 of size 20, total 0
@@ -62,34 +62,34 @@ $ blobfs scenario directories
 
 [8/11] Show one directory's row: stat
     path:    /scenario-directories/alpha
-    id:      01a11865-d6ea-78bc-bc9d-750ab31c1be6
-    parent:  01a11865-d6df-729e-89ea-5e4e5222613f
+    id:      01a11892-f684-7ca9-965a-4cad168668ac
+    parent:  01a11892-f681-7074-8ee8-1cf91909620c
     name:    alpha
     version: 1
-    created: 2026-10-07T22:04:49Z
-    updated: 2026-10-07T22:04:49Z
+    created: 2026-10-07T22:54:06Z
+    updated: 2026-10-07T22:54:06Z
 
 [9/11] Move echo into alpha, then rename bravo to foxtrot: mv
   A destination that names an existing directory takes the source under its own
   name; one that names a new path renames. Both stay under the one top-level
   directory.
-    mv: /scenario-directories/echo -> /scenario-directories/alpha/echo (id 01a11865-d6f0-7ea9-8fd0-b6c0f68dd332)
-    mv: /scenario-directories/bravo -> /scenario-directories/foxtrot (id 01a11865-d6ec-7253-843b-9659d43547bf)
+    mv: /scenario-directories/echo -> /scenario-directories/alpha/echo (id 01a11892-f689-7f1e-8c58-e7a73315c7ff)
+    mv: /scenario-directories/bravo -> /scenario-directories/foxtrot (id 01a11892-f686-75fa-9ffa-58c326e6e033)
 
 [10/11] List the working area and alpha after the moves: ls
   ls /scenario-directories
     KIND  NAME     SIZE  STATUS  UPDATED              ID
-    dir   alpha    -     -       2026-10-07 22:04:49  01a11865-d6ea-78bc-bc9d-750ab31c1be6
-    dir   charlie  -     -       2026-10-07 22:04:49  01a11865-d6ed-7f35-9854-1052257b814b
-    dir   delta    -     -       2026-10-07 22:04:49  01a11865-d6ef-7a86-8599-4e747999eac4
-    dir   foxtrot  -     -       2026-10-07 22:04:49  01a11865-d6ec-7253-843b-9659d43547bf
+    dir   alpha    -     -       2026-10-07 22:54:06  01a11892-f684-7ca9-965a-4cad168668ac
+    dir   charlie  -     -       2026-10-07 22:54:06  01a11892-f687-7dac-8742-0bebc5da0323
+    dir   delta    -     -       2026-10-07 22:54:06  01a11892-f689-708a-98aa-8c4b71bfb446
+    dir   foxtrot  -     -       2026-10-07 22:54:06  01a11892-f686-75fa-9ffa-58c326e6e033
     directories: 4 on page 1 of size 20, total 4
     more: no
     files: 0 on page 1 of size 20, total 0
     more: no
   ls /scenario-directories/alpha
     KIND  NAME  SIZE  STATUS  UPDATED              ID
-    dir   echo  -     -       2026-10-07 22:04:49  01a11865-d6f0-7ea9-8fd0-b6c0f68dd332
+    dir   echo  -     -       2026-10-07 22:54:06  01a11892-f689-7f1e-8c58-e7a73315c7ff
     directories: 1 on page 1 of size 20, total 1
     more: no
     files: 0 on page 1 of size 20, total 0
@@ -98,12 +98,12 @@ $ blobfs scenario directories
 [11/11] Remove the working area, deepest directory first: rmdir
   rmdir removes an empty directory only, so the tree goes from the leaves up;
   the working area's owner row goes with it, and a rerun starts clean.
-    rmdir: /scenario-directories/alpha/echo (id 01a11865-d6f0-7ea9-8fd0-b6c0f68dd332)
-    rmdir: /scenario-directories/alpha (id 01a11865-d6ea-78bc-bc9d-750ab31c1be6)
-    rmdir: /scenario-directories/charlie (id 01a11865-d6ed-7f35-9854-1052257b814b)
-    rmdir: /scenario-directories/delta (id 01a11865-d6ef-7a86-8599-4e747999eac4)
-    rmdir: /scenario-directories/foxtrot (id 01a11865-d6ec-7253-843b-9659d43547bf)
-    rmdir: /scenario-directories (id 01a11865-d6df-729e-89ea-5e4e5222613f)
+    rmdir: /scenario-directories/alpha/echo (id 01a11892-f689-7f1e-8c58-e7a73315c7ff)
+    rmdir: /scenario-directories/alpha (id 01a11892-f684-7ca9-965a-4cad168668ac)
+    rmdir: /scenario-directories/charlie (id 01a11892-f687-7dac-8742-0bebc5da0323)
+    rmdir: /scenario-directories/delta (id 01a11892-f689-708a-98aa-8c4b71bfb446)
+    rmdir: /scenario-directories/foxtrot (id 01a11892-f686-75fa-9ffa-58c326e6e033)
+    rmdir: /scenario-directories (id 01a11892-f681-7074-8ee8-1cf91909620c)
 exit 0
 
 # run 2 against the development stack (mise run app:up; blobfs schema up)
@@ -115,31 +115,31 @@ $ blobfs scenario directories
 [2/11] Create /scenario-directories as the scenario unit's: mkdir --unit
   A directory created with a unit is top-level, and its owner row is written in
   the same transaction, so the unit's scope starts here.
-    mkdir: /scenario-directories (id 01a11865-d749-7fa2-87c3-52e47110deeb, unit 0199c0de-0000-7000-8000-0000000000de)
+    mkdir: /scenario-directories (id 01a11892-f6b3-7347-a247-84b2843f8cb5, unit 0199c0de-0000-7000-8000-0000000000de)
 
 [3/11] List the unit's top-level directories: ls / --unit
   At the root, a unit's listing is its own top-level directories, read through
   the owner rows.
     KIND  NAME                  SIZE  STATUS  UPDATED              ID
-    dir   scenario-directories  -     -       2026-10-07 22:04:49  01a11865-d749-7fa2-87c3-52e47110deeb
+    dir   scenario-directories  -     -       2026-10-07 22:54:07  01a11892-f6b3-7347-a247-84b2843f8cb5
     directories: 1 on page 1 of size 20, total 1
     more: no
     files: 0 on page 1 of size 20, total 0
     more: no
 
 [4/11] Create five directories under the working area: mkdir
-    mkdir: /scenario-directories/alpha (id 01a11865-d74d-7b32-8ed0-07adc5d49c0a)
-    mkdir: /scenario-directories/bravo (id 01a11865-d74f-7452-97eb-f3ea0e1c000f)
-    mkdir: /scenario-directories/charlie (id 01a11865-d750-76ec-9a11-4ab59d4b7e0a)
-    mkdir: /scenario-directories/delta (id 01a11865-d751-781a-b71a-563bbb8f68fa)
-    mkdir: /scenario-directories/echo (id 01a11865-d752-76a7-916c-71cb444d9182)
+    mkdir: /scenario-directories/alpha (id 01a11892-f6b5-7fa3-8c59-408dd0aeee2b)
+    mkdir: /scenario-directories/bravo (id 01a11892-f6b7-713e-a798-3b7ee867c42a)
+    mkdir: /scenario-directories/charlie (id 01a11892-f6b8-71e6-ade1-d1dcefabc740)
+    mkdir: /scenario-directories/delta (id 01a11892-f6b9-721e-8900-0ff1c32b5b3d)
+    mkdir: /scenario-directories/echo (id 01a11892-f6ba-713c-926c-31acdd85cb6d)
 
 [5/11] List the first page of two, by name descending: ls --size 2 --sort name:desc
   A page by number counts the total; the next-dirs line is the cursor that
   continues the directory half.
     KIND  NAME   SIZE  STATUS  UPDATED              ID
-    dir   echo   -     -       2026-10-07 22:04:49  01a11865-d752-76a7-916c-71cb444d9182
-    dir   delta  -     -       2026-10-07 22:04:49  01a11865-d751-781a-b71a-563bbb8f68fa
+    dir   echo   -     -       2026-10-07 22:54:07  01a11892-f6ba-713c-926c-31acdd85cb6d
+    dir   delta  -     -       2026-10-07 22:54:07  01a11892-f6b9-721e-8900-0ff1c32b5b3d
     directories: 2 on page 1 of size 2, total 5
     more: yes
     next-dirs: aKx653sidiI6MSwiYmFzZSI6ImRpcmVjdG9yeV9jaGlsZHJlbiIsInRlcm1zIjpbIm5hbWUiXSwiZGVzYyI6dHJ1ZSwiZmlsdGVycyI6Ilt7XCJGaWVsZFwiOlwic3RhdHVzXCIsXCJPcFwiOlwibmVcIixcIlZhbHVlXCI6XCJkZWxldGluZ1wifV0iLCJ2YWx1ZXMiOlsiZGVsdGEiXX0
@@ -150,8 +150,8 @@ $ blobfs scenario directories
   The cursor continues after the last row the first page showed, under the same
   sort; a continued half counts nothing.
     KIND  NAME     SIZE  STATUS  UPDATED              ID
-    dir   charlie  -     -       2026-10-07 22:04:49  01a11865-d750-76ec-9a11-4ab59d4b7e0a
-    dir   bravo    -     -       2026-10-07 22:04:49  01a11865-d74f-7452-97eb-f3ea0e1c000f
+    dir   charlie  -     -       2026-10-07 22:54:07  01a11892-f6b8-71e6-ade1-d1dcefabc740
+    dir   bravo    -     -       2026-10-07 22:54:07  01a11892-f6b7-713e-a798-3b7ee867c42a
     directories: 2 after the cursor, size 2, total not counted
     more: yes
     next-dirs: XxO4tHsidiI6MSwiYmFzZSI6ImRpcmVjdG9yeV9jaGlsZHJlbiIsInRlcm1zIjpbIm5hbWUiXSwiZGVzYyI6dHJ1ZSwiZmlsdGVycyI6Ilt7XCJGaWVsZFwiOlwic3RhdHVzXCIsXCJPcFwiOlwibmVcIixcIlZhbHVlXCI6XCJkZWxldGluZ1wifV0iLCJ2YWx1ZXMiOlsiYnJhdm8iXX0
@@ -160,9 +160,9 @@ $ blobfs scenario directories
 
 [7/11] Filter by name: ls --filter name:in:alpha,charlie,echo
     KIND  NAME     SIZE  STATUS  UPDATED              ID
-    dir   alpha    -     -       2026-10-07 22:04:49  01a11865-d74d-7b32-8ed0-07adc5d49c0a
-    dir   charlie  -     -       2026-10-07 22:04:49  01a11865-d750-76ec-9a11-4ab59d4b7e0a
-    dir   echo     -     -       2026-10-07 22:04:49  01a11865-d752-76a7-916c-71cb444d9182
+    dir   alpha    -     -       2026-10-07 22:54:07  01a11892-f6b5-7fa3-8c59-408dd0aeee2b
+    dir   charlie  -     -       2026-10-07 22:54:07  01a11892-f6b8-71e6-ade1-d1dcefabc740
+    dir   echo     -     -       2026-10-07 22:54:07  01a11892-f6ba-713c-926c-31acdd85cb6d
     directories: 3 on page 1 of size 20, total 3
     more: no
     files: 0 on page 1 of size 20, total 0
@@ -170,34 +170,34 @@ $ blobfs scenario directories
 
 [8/11] Show one directory's row: stat
     path:    /scenario-directories/alpha
-    id:      01a11865-d74d-7b32-8ed0-07adc5d49c0a
-    parent:  01a11865-d749-7fa2-87c3-52e47110deeb
+    id:      01a11892-f6b5-7fa3-8c59-408dd0aeee2b
+    parent:  01a11892-f6b3-7347-a247-84b2843f8cb5
     name:    alpha
     version: 1
-    created: 2026-10-07T22:04:49Z
-    updated: 2026-10-07T22:04:49Z
+    created: 2026-10-07T22:54:07Z
+    updated: 2026-10-07T22:54:07Z
 
 [9/11] Move echo into alpha, then rename bravo to foxtrot: mv
   A destination that names an existing directory takes the source under its own
   name; one that names a new path renames. Both stay under the one top-level
   directory.
-    mv: /scenario-directories/echo -> /scenario-directories/alpha/echo (id 01a11865-d752-76a7-916c-71cb444d9182)
-    mv: /scenario-directories/bravo -> /scenario-directories/foxtrot (id 01a11865-d74f-7452-97eb-f3ea0e1c000f)
+    mv: /scenario-directories/echo -> /scenario-directories/alpha/echo (id 01a11892-f6ba-713c-926c-31acdd85cb6d)
+    mv: /scenario-directories/bravo -> /scenario-directories/foxtrot (id 01a11892-f6b7-713e-a798-3b7ee867c42a)
 
 [10/11] List the working area and alpha after the moves: ls
   ls /scenario-directories
     KIND  NAME     SIZE  STATUS  UPDATED              ID
-    dir   alpha    -     -       2026-10-07 22:04:49  01a11865-d74d-7b32-8ed0-07adc5d49c0a
-    dir   charlie  -     -       2026-10-07 22:04:49  01a11865-d750-76ec-9a11-4ab59d4b7e0a
-    dir   delta    -     -       2026-10-07 22:04:49  01a11865-d751-781a-b71a-563bbb8f68fa
-    dir   foxtrot  -     -       2026-10-07 22:04:49  01a11865-d74f-7452-97eb-f3ea0e1c000f
+    dir   alpha    -     -       2026-10-07 22:54:07  01a11892-f6b5-7fa3-8c59-408dd0aeee2b
+    dir   charlie  -     -       2026-10-07 22:54:07  01a11892-f6b8-71e6-ade1-d1dcefabc740
+    dir   delta    -     -       2026-10-07 22:54:07  01a11892-f6b9-721e-8900-0ff1c32b5b3d
+    dir   foxtrot  -     -       2026-10-07 22:54:07  01a11892-f6b7-713e-a798-3b7ee867c42a
     directories: 4 on page 1 of size 20, total 4
     more: no
     files: 0 on page 1 of size 20, total 0
     more: no
   ls /scenario-directories/alpha
     KIND  NAME  SIZE  STATUS  UPDATED              ID
-    dir   echo  -     -       2026-10-07 22:04:49  01a11865-d752-76a7-916c-71cb444d9182
+    dir   echo  -     -       2026-10-07 22:54:07  01a11892-f6ba-713c-926c-31acdd85cb6d
     directories: 1 on page 1 of size 20, total 1
     more: no
     files: 0 on page 1 of size 20, total 0
@@ -206,11 +206,10 @@ $ blobfs scenario directories
 [11/11] Remove the working area, deepest directory first: rmdir
   rmdir removes an empty directory only, so the tree goes from the leaves up;
   the working area's owner row goes with it, and a rerun starts clean.
-    rmdir: /scenario-directories/alpha/echo (id 01a11865-d752-76a7-916c-71cb444d9182)
-    rmdir: /scenario-directories/alpha (id 01a11865-d74d-7b32-8ed0-07adc5d49c0a)
-    rmdir: /scenario-directories/charlie (id 01a11865-d750-76ec-9a11-4ab59d4b7e0a)
-    rmdir: /scenario-directories/delta (id 01a11865-d751-781a-b71a-563bbb8f68fa)
-    rmdir: /scenario-directories/foxtrot (id 01a11865-d74f-7452-97eb-f3ea0e1c000f)
-    rmdir: /scenario-directories (id 01a11865-d749-7fa2-87c3-52e47110deeb)
+    rmdir: /scenario-directories/alpha/echo (id 01a11892-f6ba-713c-926c-31acdd85cb6d)
+    rmdir: /scenario-directories/alpha (id 01a11892-f6b5-7fa3-8c59-408dd0aeee2b)
+    rmdir: /scenario-directories/charlie (id 01a11892-f6b8-71e6-ade1-d1dcefabc740)
+    rmdir: /scenario-directories/delta (id 01a11892-f6b9-721e-8900-0ff1c32b5b3d)
+    rmdir: /scenario-directories/foxtrot (id 01a11892-f6b7-713e-a798-3b7ee867c42a)
+    rmdir: /scenario-directories (id 01a11892-f6b3-7347-a247-84b2843f8cb5)
 exit 0
-

@@ -1,0 +1,395 @@
+[acceptance] $ export GOWORK=off
+=== RUN   TestAcceptance_Conformance
+=== RUN   TestAcceptance_Conformance/EnsureContainer
+=== RUN   TestAcceptance_Conformance/RoundTrip
+=== RUN   TestAcceptance_Conformance/LargeBody
+=== RUN   TestAcceptance_Conformance/EmptyBody
+=== RUN   TestAcceptance_Conformance/Replace
+=== RUN   TestAcceptance_Conformance/MissingKey
+=== RUN   TestAcceptance_Conformance/Delete
+=== RUN   TestAcceptance_Conformance/List
+=== RUN   TestAcceptance_Conformance/PutDeclaredSize
+=== RUN   TestAcceptance_Conformance/PutUnknownSize
+=== RUN   TestAcceptance_Conformance/PutNonSeekableBody
+=== RUN   TestAcceptance_Conformance/PutOneByteReads
+=== RUN   TestAcceptance_Conformance/PutBodyFailsMidway
+=== RUN   TestAcceptance_Conformance/PutSizeMismatch
+=== RUN   TestAcceptance_Conformance/Capabilities
+--- PASS: TestAcceptance_Conformance (0.75s)
+    --- PASS: TestAcceptance_Conformance/EnsureContainer (0.01s)
+    --- PASS: TestAcceptance_Conformance/RoundTrip (0.22s)
+    --- PASS: TestAcceptance_Conformance/LargeBody (0.10s)
+    --- PASS: TestAcceptance_Conformance/EmptyBody (0.01s)
+    --- PASS: TestAcceptance_Conformance/Replace (0.01s)
+    --- PASS: TestAcceptance_Conformance/MissingKey (0.01s)
+    --- PASS: TestAcceptance_Conformance/Delete (0.01s)
+    --- PASS: TestAcceptance_Conformance/List (0.04s)
+    --- PASS: TestAcceptance_Conformance/PutDeclaredSize (0.01s)
+    --- PASS: TestAcceptance_Conformance/PutUnknownSize (0.01s)
+    --- PASS: TestAcceptance_Conformance/PutNonSeekableBody (0.05s)
+    --- PASS: TestAcceptance_Conformance/PutOneByteReads (0.01s)
+    --- PASS: TestAcceptance_Conformance/PutBodyFailsMidway (0.10s)
+    --- PASS: TestAcceptance_Conformance/PutSizeMismatch (0.14s)
+    --- PASS: TestAcceptance_Conformance/Capabilities (0.00s)
+=== RUN   TestAcceptance_MissingContainer
+--- PASS: TestAcceptance_MissingContainer (0.01s)
+=== RUN   TestAcceptance_StatMissingBucket
+    acceptance_test.go:143: Stat over a missing bucket: s3: stat "absent/key.txt": object answered 404, bucket check: storage container not found: operation error S3: HeadBucket, https response error StatusCode: 404, RequestID: 18DC612350DC5255D86FF7D2, HostID: , NotFound: 
+--- PASS: TestAcceptance_StatMissingBucket (0.00s)
+=== RUN   TestAcceptance_StoreStart
+--- PASS: TestAcceptance_StoreStart (0.02s)
+=== RUN   TestAcceptance_StoreObjects
+    acceptance_test.go:200: Put:  ETag="\"3f6de62e1034bae3b1b6c32e43e0e00e\"" ModifiedAt=2026-10-07 22:52:36 +0000 UTC
+    acceptance_test.go:211: Get:  ETag="\"3f6de62e1034bae3b1b6c32e43e0e00e\"" ModifiedAt=2026-10-07 22:52:36 +0000 UTC ContentType="text/plain" Size=23
+    acceptance_test.go:220: Stat: ETag="\"3f6de62e1034bae3b1b6c32e43e0e00e\"" ModifiedAt=2026-10-07 22:52:36 +0000 UTC ContentType="text/plain" Size=23
+    acceptance_test.go:227: List: Key="store/hello.txt" ETag="\"3f6de62e1034bae3b1b6c32e43e0e00e\"" ModifiedAt=2026-10-07 22:52:36 +0000 UTC Size=23
+--- PASS: TestAcceptance_StoreObjects (0.23s)
+=== RUN   TestAcceptance_StoreStartUnreachable
+    acceptance_test.go:278: Start: storage unavailable: operation error S3: CreateBucket, exceeded maximum number of attempts, 3, https response error StatusCode: 0, RequestID: , HostID: , request send failed, Put "http://127.0.0.1:34019/unreachable": dial tcp 127.0.0.1:34019: connect: connection refused
+--- PASS: TestAcceptance_StoreStartUnreachable (4.25s)
+=== RUN   TestAcceptance_EnsureContainerExisting
+--- PASS: TestAcceptance_EnsureContainerExisting (0.25s)
+=== RUN   TestAcceptance_MultipartInvisibleUntilComplete
+    acceptance_test.go:476: in progress: UploadId="ff90e061b093514e5416319a7aad215864ab289a_7dec478386c340ef899fb35c5b78d9be" Initiated=2026-10-07 22:52:40 +0000 UTC
+    acceptance_test.go:490: Put:  ETag="\"07e05c0290714cf8d4ed6cd7a58ba261-3\"" ModifiedAt=2026-10-07 22:52:41 +0000 UTC Size=12582912
+    acceptance_test.go:521: Stat: ETag="\"07e05c0290714cf8d4ed6cd7a58ba261-3\"" ModifiedAt=2026-10-07 22:52:41 +0000 UTC Size=12582912 ContentType="video/mp4"
+    acceptance_test.go:522: List: ETag="\"07e05c0290714cf8d4ed6cd7a58ba261-3\"" ModifiedAt=2026-10-07 22:52:41 +0000 UTC Size=12582912
+--- PASS: TestAcceptance_MultipartInvisibleUntilComplete (1.23s)
+=== RUN   TestAcceptance_MultipartFailureLeavesNothing
+=== RUN   TestAcceptance_MultipartFailureLeavesNothing/body_fails_midway
+    acceptance_test.go:599: Put: s3: read body: source broke
+=== RUN   TestAcceptance_MultipartFailureLeavesNothing/shorter_than_declared
+    acceptance_test.go:599: Put: s3: read body: body ended after 11534336 bytes, short of the declared size (12582912 bytes): unexpected EOF
+=== RUN   TestAcceptance_MultipartFailureLeavesNothing/caller_cancels
+    acceptance_test.go:599: Put: upload multipart failed, upload id: d62997864afeaaa376eed1fd7a7c12a1dcddb3b5_b1730b92af544bde91b406a97bee597f, cause: operation error S3: UploadPart, context canceled
+--- PASS: TestAcceptance_MultipartFailureLeavesNothing (1.41s)
+    --- PASS: TestAcceptance_MultipartFailureLeavesNothing/body_fails_midway (1.14s)
+    --- PASS: TestAcceptance_MultipartFailureLeavesNothing/shorter_than_declared (0.13s)
+    --- PASS: TestAcceptance_MultipartFailureLeavesNothing/caller_cancels (0.12s)
+=== RUN   TestNew_RequiresContainerAccountAndKey
+=== RUN   TestNew_RequiresContainerAccountAndKey/container
+=== RUN   TestNew_RequiresContainerAccountAndKey/account
+=== RUN   TestNew_RequiresContainerAccountAndKey/key
+--- PASS: TestNew_RequiresContainerAccountAndKey (0.00s)
+    --- PASS: TestNew_RequiresContainerAccountAndKey/container (0.00s)
+    --- PASS: TestNew_RequiresContainerAccountAndKey/account (0.00s)
+    --- PASS: TestNew_RequiresContainerAccountAndKey/key (0.00s)
+=== RUN   TestNew_RejectsInvalidBucketNames
+=== RUN   TestNew_RejectsInvalidBucketNames/ab
+=== RUN   TestNew_RejectsInvalidBucketNames/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+=== RUN   TestNew_RejectsInvalidBucketNames/Upper
+=== RUN   TestNew_RejectsInvalidBucketNames/under_score
+=== RUN   TestNew_RejectsInvalidBucketNames/-leading
+=== RUN   TestNew_RejectsInvalidBucketNames/trailing-
+=== RUN   TestNew_RejectsInvalidBucketNames/.leading
+=== RUN   TestNew_RejectsInvalidBucketNames/trailing.
+=== RUN   TestNew_RejectsInvalidBucketNames/two..dots
+=== RUN   TestNew_RejectsInvalidBucketNames/192.168.5.4
+=== RUN   TestNew_RejectsInvalidBucketNames/xn--bucket
+=== RUN   TestNew_RejectsInvalidBucketNames/sthree-bucket
+=== RUN   TestNew_RejectsInvalidBucketNames/amzn-s3-demo-bucket
+=== RUN   TestNew_RejectsInvalidBucketNames/bucket-s3alias
+=== RUN   TestNew_RejectsInvalidBucketNames/bucket--ol-s3
+=== RUN   TestNew_RejectsInvalidBucketNames/bucket.mrap
+=== RUN   TestNew_RejectsInvalidBucketNames/bucket--x-s3
+=== RUN   TestNew_RejectsInvalidBucketNames/bucket--table-s3
+--- PASS: TestNew_RejectsInvalidBucketNames (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/ab (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/Upper (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/under_score (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/-leading (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/trailing- (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/.leading (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/trailing. (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/two..dots (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/192.168.5.4 (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/xn--bucket (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/sthree-bucket (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/amzn-s3-demo-bucket (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/bucket-s3alias (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/bucket--ol-s3 (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/bucket.mrap (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/bucket--x-s3 (0.00s)
+    --- PASS: TestNew_RejectsInvalidBucketNames/bucket--table-s3 (0.00s)
+=== RUN   TestNew_AcceptsValidBucketNames
+=== RUN   TestNew_AcceptsValidBucketNames/abc
+=== RUN   TestNew_AcceptsValidBucketNames/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+=== RUN   TestNew_AcceptsValidBucketNames/my-bucket.v2
+=== RUN   TestNew_AcceptsValidBucketNames/0-9
+=== RUN   TestNew_AcceptsValidBucketNames/999.168.5.4
+--- PASS: TestNew_AcceptsValidBucketNames (0.00s)
+    --- PASS: TestNew_AcceptsValidBucketNames/abc (0.00s)
+    --- PASS: TestNew_AcceptsValidBucketNames/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa (0.00s)
+    --- PASS: TestNew_AcceptsValidBucketNames/my-bucket.v2 (0.00s)
+    --- PASS: TestNew_AcceptsValidBucketNames/0-9 (0.00s)
+    --- PASS: TestNew_AcceptsValidBucketNames/999.168.5.4 (0.00s)
+=== RUN   TestNew_RejectsBadEndpoint
+=== RUN   TestNew_RejectsBadEndpoint/127.0.0.1:8333
+=== RUN   TestNew_RejectsBadEndpoint/ftp://host
+=== RUN   TestNew_RejectsBadEndpoint/http://
+=== RUN   TestNew_RejectsBadEndpoint/http://[::1
+--- PASS: TestNew_RejectsBadEndpoint (0.00s)
+    --- PASS: TestNew_RejectsBadEndpoint/127.0.0.1:8333 (0.00s)
+    --- PASS: TestNew_RejectsBadEndpoint/ftp://host (0.00s)
+    --- PASS: TestNew_RejectsBadEndpoint/http:// (0.00s)
+    --- PASS: TestNew_RejectsBadEndpoint/http://[::1 (0.00s)
+=== RUN   TestNew_RejectsBadMaxRetries
+=== RUN   TestNew_RejectsBadMaxRetries/-1
+=== RUN   TestNew_RejectsBadMaxRetries/x
+=== RUN   TestNew_RejectsBadMaxRetries/1.5
+=== RUN   TestNew_RejectsBadMaxRetries/#00
+--- PASS: TestNew_RejectsBadMaxRetries (0.00s)
+    --- PASS: TestNew_RejectsBadMaxRetries/-1 (0.00s)
+    --- PASS: TestNew_RejectsBadMaxRetries/x (0.00s)
+    --- PASS: TestNew_RejectsBadMaxRetries/1.5 (0.00s)
+    --- PASS: TestNew_RejectsBadMaxRetries/#00 (0.00s)
+=== RUN   TestNew_RejectsBadPartSize
+=== RUN   TestNew_RejectsBadPartSize/x
+=== RUN   TestNew_RejectsBadPartSize/#00
+=== RUN   TestNew_RejectsBadPartSize/-1
+=== RUN   TestNew_RejectsBadPartSize/5242879
+=== RUN   TestNew_RejectsBadPartSize/5368709121
+=== RUN   TestNew_RejectsBadPartSize/8MiB
+--- PASS: TestNew_RejectsBadPartSize (0.00s)
+    --- PASS: TestNew_RejectsBadPartSize/x (0.00s)
+    --- PASS: TestNew_RejectsBadPartSize/#00 (0.00s)
+    --- PASS: TestNew_RejectsBadPartSize/-1 (0.00s)
+    --- PASS: TestNew_RejectsBadPartSize/5242879 (0.00s)
+    --- PASS: TestNew_RejectsBadPartSize/5368709121 (0.00s)
+    --- PASS: TestNew_RejectsBadPartSize/8MiB (0.00s)
+=== RUN   TestNew_AcceptsPartSizeBounds
+--- PASS: TestNew_AcceptsPartSizeBounds (0.00s)
+=== RUN   TestNew_RejectsEmptyRegion
+--- PASS: TestNew_RejectsEmptyRegion (0.00s)
+=== RUN   TestNew_PanicsOnUnfinalizedConfig
+--- PASS: TestNew_PanicsOnUnfinalizedConfig (0.00s)
+=== RUN   TestNew_PerformsNoIO
+--- PASS: TestNew_PerformsNoIO (0.00s)
+=== RUN   TestProbe_PathStyleSignedForDefaultRegion
+--- PASS: TestProbe_PathStyleSignedForDefaultRegion (0.00s)
+=== RUN   TestProbe_RegionOption
+--- PASS: TestProbe_RegionOption (0.00s)
+=== RUN   TestProbe_BucketNotFound
+--- PASS: TestProbe_BucketNotFound (0.00s)
+=== RUN   TestProbe_ServerError
+=== RUN   TestProbe_ServerError/Internal_Server_Error
+=== RUN   TestProbe_ServerError/Service_Unavailable
+--- PASS: TestProbe_ServerError (0.00s)
+    --- PASS: TestProbe_ServerError/Internal_Server_Error (0.00s)
+    --- PASS: TestProbe_ServerError/Service_Unavailable (0.00s)
+=== RUN   TestProbe_Forbidden
+--- PASS: TestProbe_Forbidden (0.00s)
+=== RUN   TestProbe_ConnectionRefused
+--- PASS: TestProbe_ConnectionRefused (0.00s)
+=== RUN   TestProbe_CallerCancelled
+--- PASS: TestProbe_CallerCancelled (0.00s)
+=== RUN   TestProbe_CallerDeadline
+--- PASS: TestProbe_CallerDeadline (0.05s)
+=== RUN   TestMaxRetries_BoundsTheSDKRetryCount
+--- PASS: TestMaxRetries_BoundsTheSDKRetryCount (1.61s)
+=== RUN   TestEnsureContainer_Created
+--- PASS: TestEnsureContainer_Created (0.00s)
+=== RUN   TestEnsureContainer_LocationConstraintOutsideUSEast1
+--- PASS: TestEnsureContainer_LocationConstraintOutsideUSEast1 (0.00s)
+=== RUN   TestEnsureContainer_AlreadyOwnedByYou
+--- PASS: TestEnsureContainer_AlreadyOwnedByYou (0.00s)
+=== RUN   TestEnsureContainer_AlreadyExistsAndReachable
+--- PASS: TestEnsureContainer_AlreadyExistsAndReachable (0.00s)
+=== RUN   TestEnsureContainer_AlreadyExistsElsewhere
+--- PASS: TestEnsureContainer_AlreadyExistsElsewhere (0.00s)
+=== RUN   TestEnsureContainer_ServerError
+--- PASS: TestEnsureContainer_ServerError (0.00s)
+=== RUN   TestEnsureContainer_Forbidden
+--- PASS: TestEnsureContainer_Forbidden (0.00s)
+=== RUN   TestEnsureContainer_ConnectionRefused
+--- PASS: TestEnsureContainer_ConnectionRefused (0.00s)
+=== RUN   TestCapabilities_MaxKeyLengthIsValidateKeysBound
+--- PASS: TestCapabilities_MaxKeyLengthIsValidateKeysBound (0.00s)
+=== RUN   TestValidateKey_Accepts
+=== RUN   TestValidateKey_Accepts/plain
+=== RUN   TestValidateKey_Accepts/nested
+=== RUN   TestValidateKey_Accepts/multibyte
+=== RUN   TestValidateKey_Accepts/trailing_slash
+=== RUN   TestValidateKey_Accepts/trailing_dot
+=== RUN   TestValidateKey_Accepts/control_char
+=== RUN   TestValidateKey_Accepts/1024_bytes
+=== RUN   TestValidateKey_Accepts/1024_bytes_utf-8
+--- PASS: TestValidateKey_Accepts (0.00s)
+    --- PASS: TestValidateKey_Accepts/plain (0.00s)
+    --- PASS: TestValidateKey_Accepts/nested (0.00s)
+    --- PASS: TestValidateKey_Accepts/multibyte (0.00s)
+    --- PASS: TestValidateKey_Accepts/trailing_slash (0.00s)
+    --- PASS: TestValidateKey_Accepts/trailing_dot (0.00s)
+    --- PASS: TestValidateKey_Accepts/control_char (0.00s)
+    --- PASS: TestValidateKey_Accepts/1024_bytes (0.00s)
+    --- PASS: TestValidateKey_Accepts/1024_bytes_utf-8 (0.00s)
+=== RUN   TestValidateKey_Rejects
+=== RUN   TestValidateKey_Rejects/truncated_multi-byte
+=== RUN   TestValidateKey_Rejects/1025_bytes
+=== RUN   TestValidateKey_Rejects/1026_bytes_of_utf-8
+=== RUN   TestValidateKey_Rejects/empty
+=== RUN   TestValidateKey_Rejects/invalid_utf-8
+--- PASS: TestValidateKey_Rejects (0.00s)
+    --- PASS: TestValidateKey_Rejects/truncated_multi-byte (0.00s)
+    --- PASS: TestValidateKey_Rejects/1025_bytes (0.00s)
+    --- PASS: TestValidateKey_Rejects/1026_bytes_of_utf-8 (0.00s)
+    --- PASS: TestValidateKey_Rejects/empty (0.00s)
+    --- PASS: TestValidateKey_Rejects/invalid_utf-8 (0.00s)
+=== RUN   TestPut_SendsOnePutObjectAndStatsForModifiedAt
+--- PASS: TestPut_SendsOnePutObjectAndStatsForModifiedAt (0.00s)
+=== RUN   TestPut_EmptyContentTypeStoresOctetStream
+--- PASS: TestPut_EmptyContentTypeStoresOctetStream (0.00s)
+=== RUN   TestPut_ModifiedAtFallsBackToDate
+=== RUN   TestPut_ModifiedAtFallsBackToDate/replaced
+=== RUN   TestPut_ModifiedAtFallsBackToDate/failed
+--- PASS: TestPut_ModifiedAtFallsBackToDate (0.00s)
+    --- PASS: TestPut_ModifiedAtFallsBackToDate/replaced (0.00s)
+    --- PASS: TestPut_ModifiedAtFallsBackToDate/failed (0.00s)
+=== RUN   TestPut_BodyFailuresSendNothing
+=== RUN   TestPut_BodyFailuresSendNothing/shorter_than_declared
+=== RUN   TestPut_BodyFailuresSendNothing/longer_than_declared
+=== RUN   TestPut_BodyFailuresSendNothing/body_fails
+=== RUN   TestPut_BodyFailuresSendNothing/declared_past_a_part,_ends_within_one
+--- PASS: TestPut_BodyFailuresSendNothing (0.03s)
+    --- PASS: TestPut_BodyFailuresSendNothing/shorter_than_declared (0.00s)
+    --- PASS: TestPut_BodyFailuresSendNothing/longer_than_declared (0.00s)
+    --- PASS: TestPut_BodyFailuresSendNothing/body_fails (0.00s)
+    --- PASS: TestPut_BodyFailuresSendNothing/declared_past_a_part,_ends_within_one (0.02s)
+=== RUN   TestPut_BodyOfOnePartIsOnePutObject
+--- PASS: TestPut_BodyOfOnePartIsOnePutObject (0.13s)
+=== RUN   TestPut_LongerThanAPartIsAMultipartUpload
+=== RUN   TestPut_LongerThanAPartIsAMultipartUpload/one_byte_past_a_part
+=== RUN   TestPut_LongerThanAPartIsAMultipartUpload/12_MiB_unknown_size
+=== RUN   TestPut_LongerThanAPartIsAMultipartUpload/12_MiB_declared
+--- PASS: TestPut_LongerThanAPartIsAMultipartUpload (0.36s)
+    --- PASS: TestPut_LongerThanAPartIsAMultipartUpload/one_byte_past_a_part (0.10s)
+    --- PASS: TestPut_LongerThanAPartIsAMultipartUpload/12_MiB_unknown_size (0.14s)
+    --- PASS: TestPut_LongerThanAPartIsAMultipartUpload/12_MiB_declared (0.12s)
+=== RUN   TestPut_MultipartFailuresAbort
+=== RUN   TestPut_MultipartFailuresAbort/body_fails_midway
+=== RUN   TestPut_MultipartFailuresAbort/shorter_than_declared
+=== RUN   TestPut_MultipartFailuresAbort/longer_than_declared
+=== RUN   TestPut_MultipartFailuresAbort/part_fails
+=== RUN   TestPut_MultipartFailuresAbort/completion_fails
+2026/10/07 18:52:46 failed to complete multipart upload for upload ID 0xc000042390: operation error S3: CompleteMultipartUpload, exceeded maximum number of attempts, 1, https response error StatusCode: 500, RequestID: unit, HostID: , api error InternalError: scripted by the test
+--- PASS: TestPut_MultipartFailuresAbort (0.50s)
+    --- PASS: TestPut_MultipartFailuresAbort/body_fails_midway (0.10s)
+    --- PASS: TestPut_MultipartFailuresAbort/shorter_than_declared (0.08s)
+    --- PASS: TestPut_MultipartFailuresAbort/longer_than_declared (0.10s)
+    --- PASS: TestPut_MultipartFailuresAbort/part_fails (0.10s)
+    --- PASS: TestPut_MultipartFailuresAbort/completion_fails (0.10s)
+=== RUN   TestPut_CancelledMultipartStillAborts
+--- PASS: TestPut_CancelledMultipartStillAborts (0.10s)
+=== RUN   TestPut_FailedAbortIsRepeated
+=== RUN   TestPut_FailedAbortIsRepeated/repeat_succeeds
+=== RUN   TestPut_FailedAbortIsRepeated/repeat_fails
+--- PASS: TestPut_FailedAbortIsRepeated (0.22s)
+    --- PASS: TestPut_FailedAbortIsRepeated/repeat_succeeds (0.11s)
+    --- PASS: TestPut_FailedAbortIsRepeated/repeat_fails (0.11s)
+=== RUN   TestObjectOperations_RejectInvalidKeys
+=== RUN   TestObjectOperations_RejectInvalidKeys/invalid_utf-8
+=== RUN   TestObjectOperations_RejectInvalidKeys/too_long
+=== RUN   TestObjectOperations_RejectInvalidKeys/empty
+--- PASS: TestObjectOperations_RejectInvalidKeys (0.00s)
+    --- PASS: TestObjectOperations_RejectInvalidKeys/invalid_utf-8 (0.00s)
+    --- PASS: TestObjectOperations_RejectInvalidKeys/too_long (0.00s)
+    --- PASS: TestObjectOperations_RejectInvalidKeys/empty (0.00s)
+=== RUN   TestGet_StreamsTheObjectWithItsMetadata
+--- PASS: TestGet_StreamsTheObjectWithItsMetadata (0.00s)
+=== RUN   TestStat_ReportsMetadata
+--- PASS: TestStat_ReportsMetadata (0.00s)
+=== RUN   TestETag_EntityTagForm
+=== RUN   TestETag_EntityTagForm/abc
+=== RUN   TestETag_EntityTagForm/W/"abc"
+=== RUN   TestETag_EntityTagForm/"a-3"
+=== RUN   TestETag_EntityTagForm/"abc"
+--- PASS: TestETag_EntityTagForm (0.01s)
+    --- PASS: TestETag_EntityTagForm/abc (0.00s)
+    --- PASS: TestETag_EntityTagForm/W/"abc" (0.00s)
+    --- PASS: TestETag_EntityTagForm/"a-3" (0.00s)
+    --- PASS: TestETag_EntityTagForm/"abc" (0.00s)
+=== RUN   TestStat_HeadBucketDisambiguatesA404
+=== RUN   TestStat_HeadBucketDisambiguatesA404/bucket_exists
+=== RUN   TestStat_HeadBucketDisambiguatesA404/bucket_missing
+=== RUN   TestStat_HeadBucketDisambiguatesA404/bucket_check_fails
+--- PASS: TestStat_HeadBucketDisambiguatesA404 (0.00s)
+    --- PASS: TestStat_HeadBucketDisambiguatesA404/bucket_exists (0.00s)
+    --- PASS: TestStat_HeadBucketDisambiguatesA404/bucket_missing (0.00s)
+    --- PASS: TestStat_HeadBucketDisambiguatesA404/bucket_check_fails (0.00s)
+=== RUN   TestStat_OtherFailuresSkipTheBucketCheck
+--- PASS: TestStat_OtherFailuresSkipTheBucketCheck (0.00s)
+=== RUN   TestObjectOperations_ClassifyErrors
+=== RUN   TestObjectOperations_ClassifyErrors/Get/NoSuchBucket
+=== RUN   TestObjectOperations_ClassifyErrors/Get/InternalError
+=== RUN   TestObjectOperations_ClassifyErrors/Get/SlowDown
+=== RUN   TestObjectOperations_ClassifyErrors/Get/AccessDenied
+=== RUN   TestObjectOperations_ClassifyErrors/Stat/NoSuchBucket
+=== RUN   TestObjectOperations_ClassifyErrors/Stat/InternalError
+=== RUN   TestObjectOperations_ClassifyErrors/Stat/SlowDown
+=== RUN   TestObjectOperations_ClassifyErrors/Stat/AccessDenied
+=== RUN   TestObjectOperations_ClassifyErrors/Delete/NoSuchBucket
+=== RUN   TestObjectOperations_ClassifyErrors/Delete/InternalError
+=== RUN   TestObjectOperations_ClassifyErrors/Delete/SlowDown
+=== RUN   TestObjectOperations_ClassifyErrors/Delete/AccessDenied
+=== RUN   TestObjectOperations_ClassifyErrors/List/NoSuchBucket
+=== RUN   TestObjectOperations_ClassifyErrors/List/InternalError
+=== RUN   TestObjectOperations_ClassifyErrors/List/SlowDown
+=== RUN   TestObjectOperations_ClassifyErrors/List/AccessDenied
+=== RUN   TestObjectOperations_ClassifyErrors/Put/NoSuchBucket
+=== RUN   TestObjectOperations_ClassifyErrors/Put/InternalError
+=== RUN   TestObjectOperations_ClassifyErrors/Put/SlowDown
+=== RUN   TestObjectOperations_ClassifyErrors/Put/AccessDenied
+--- PASS: TestObjectOperations_ClassifyErrors (0.02s)
+    --- PASS: TestObjectOperations_ClassifyErrors/Get/NoSuchBucket (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/Get/InternalError (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/Get/SlowDown (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/Get/AccessDenied (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/Stat/NoSuchBucket (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/Stat/InternalError (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/Stat/SlowDown (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/Stat/AccessDenied (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/Delete/NoSuchBucket (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/Delete/InternalError (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/Delete/SlowDown (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/Delete/AccessDenied (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/List/NoSuchBucket (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/List/InternalError (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/List/SlowDown (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/List/AccessDenied (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/Put/NoSuchBucket (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/Put/InternalError (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/Put/SlowDown (0.00s)
+    --- PASS: TestObjectOperations_ClassifyErrors/Put/AccessDenied (0.00s)
+=== RUN   TestObjectOperations_UnreachableEndpointIsUnavailable
+=== RUN   TestObjectOperations_UnreachableEndpointIsUnavailable/Stat
+=== RUN   TestObjectOperations_UnreachableEndpointIsUnavailable/Delete
+=== RUN   TestObjectOperations_UnreachableEndpointIsUnavailable/List
+=== RUN   TestObjectOperations_UnreachableEndpointIsUnavailable/Put
+=== RUN   TestObjectOperations_UnreachableEndpointIsUnavailable/Get
+--- PASS: TestObjectOperations_UnreachableEndpointIsUnavailable (0.00s)
+    --- PASS: TestObjectOperations_UnreachableEndpointIsUnavailable/Stat (0.00s)
+    --- PASS: TestObjectOperations_UnreachableEndpointIsUnavailable/Delete (0.00s)
+    --- PASS: TestObjectOperations_UnreachableEndpointIsUnavailable/List (0.00s)
+    --- PASS: TestObjectOperations_UnreachableEndpointIsUnavailable/Put (0.00s)
+    --- PASS: TestObjectOperations_UnreachableEndpointIsUnavailable/Get (0.00s)
+=== RUN   TestGet_MissingKey
+--- PASS: TestGet_MissingKey (0.00s)
+=== RUN   TestGet_BodyReadFailureIsUnavailable
+--- PASS: TestGet_BodyReadFailureIsUnavailable (0.00s)
+=== RUN   TestDelete_MissingKeySucceeds
+=== RUN   TestDelete_MissingKeySucceeds/204
+=== RUN   TestDelete_MissingKeySucceeds/NoSuchKey
+--- PASS: TestDelete_MissingKeySucceeds (0.00s)
+    --- PASS: TestDelete_MissingKeySucceeds/204 (0.00s)
+    --- PASS: TestDelete_MissingKeySucceeds/NoSuchKey (0.00s)
+=== RUN   TestList_PagesWithTheContinuationToken
+--- PASS: TestList_PagesWithTheContinuationToken (0.00s)
+=== RUN   TestList_LastPageHasNoNext
+--- PASS: TestList_LastPageHasNoNext (0.00s)
+PASS
+ok  	github.com/JaimeStill/spike-s3-storage/s3	12.255s
+
+real	0m12.683s
+user	0m2.345s
+sys	0m1.742s
