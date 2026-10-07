@@ -769,6 +769,37 @@ func TestGet_MissingKey(t *testing.T) {
 	wantOnly(t, "Get", err, storage.ErrNotFound)
 }
 
+// A Get body whose connection drops partway fails its read with
+// storage.ErrUnavailable, as a request that gets no answer does, with the
+// transport's error still matchable.
+func TestGet_BodyReadFailureIsUnavailable(t *testing.T) {
+	svc := newService(t, byRoute(map[string]http.HandlerFunc{
+		"GET " + testKeyPath: func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("ETag", `"abc"`)
+			w.Header().Set("Content-Length", "10")
+			w.WriteHeader(http.StatusOK)
+			_, _ = io.WriteString(w, "hello")
+			conn, _, err := http.NewResponseController(w).Hijack()
+			if err != nil {
+				t.Errorf("hijack: %v", err)
+				return
+			}
+			_ = conn.Close()
+		},
+	}))
+	c := newClient(t, testConfig(t, svc.endpoint(), nil))
+
+	blob, err := c.Get(t.Context(), "k", storage.GetOptions{})
+	if err != nil {
+		t.Fatalf("Get = %v, want nil: the answer's headers arrived", err)
+	}
+	defer func() { _ = blob.Body.Close() }()
+	data, err := io.ReadAll(blob.Body)
+	if !errors.Is(err, storage.ErrUnavailable) || !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("read of a body cut off after %q = %v, want ErrUnavailable wrapping io.ErrUnexpectedEOF", data, err)
+	}
+}
+
 // S3 answers a delete of a missing key with 204; a gateway's NoSuchKey is
 // success too.
 func TestDelete_MissingKeySucceeds(t *testing.T) {

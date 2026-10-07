@@ -533,7 +533,9 @@ func TestAcceptance_MultipartInvisibleUntilComplete(t *testing.T) {
 
 // TestAcceptance_MultipartFailureLeavesNothing fails a 12 MiB multipart Put
 // partway in three ways: the body fails, the body ends short of its
-// declared size, and the caller cancels. Each returns its failure and
+// declared size, and the caller cancels. Each body pauses at 6 MiB, where
+// the gateway must list the upload in progress, so the case proves an
+// upload was open to clean up; released, each Put returns its failure and
 // leaves no object and no open multipart upload for the key.
 func TestAcceptance_MultipartFailureLeavesNothing(t *testing.T) {
 	cfg := acceptanceConfig(t)
@@ -563,7 +565,34 @@ func TestAcceptance_MultipartFailureLeavesNothing(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
-			_, err := client.Put(ctx, key, tc.body(t, cancel), storage.PutOptions{Size: tc.size})
+			body := &pausingBody{r: tc.body(t, cancel), at: 6 << 20, reached: make(chan struct{}), release: make(chan struct{})}
+			var releaseOnce sync.Once
+			release := func() { releaseOnce.Do(func() { close(body.release) }) }
+			t.Cleanup(release)
+
+			done := make(chan error, 1)
+			go func() {
+				_, err := client.Put(ctx, key, body, storage.PutOptions{Size: tc.size})
+				done <- err
+			}()
+			select {
+			case <-body.reached:
+			case err := <-done:
+				t.Fatalf("Put returned before the body paused: %v", err)
+			case <-time.After(time.Minute):
+				t.Fatal("body never reached the pause")
+			}
+			if uploads := openUploads(t, raw, cfg.Container, key); len(uploads) != 1 {
+				t.Fatalf("ListMultipartUploads while paused lists %d uploads for %q, want 1 in progress", len(uploads), key)
+			}
+
+			release()
+			var err error
+			select {
+			case err = <-done:
+			case <-time.After(time.Minute):
+				t.Fatal("Put never returned after the release")
+			}
 			if err == nil || !tc.want(err) {
 				t.Fatalf("Put = %v, want the failure", err)
 			}

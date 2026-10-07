@@ -433,11 +433,19 @@ func TestEnsureContainer_ConnectionRefused(t *testing.T) {
 	}
 }
 
-// The rules ValidateKey applies are proved in keys_test.go.
-func TestCapabilities_MaxKeyLength(t *testing.T) {
-	c := newClient(t, testConfig(t, "http://127.0.0.1:8333", nil))
+// MaxKeyLength declares S3's 1,024-byte limit, and ValidateKey holds keys to
+// exactly that bound. The other rules ValidateKey applies are proved in
+// keys_test.go.
+func TestCapabilities_MaxKeyLengthIsValidateKeysBound(t *testing.T) {
+	caps := newClient(t, testConfig(t, "http://127.0.0.1:8333", nil)).Capabilities()
 
-	if got := c.Capabilities().MaxKeyLength; got != 1024 {
-		t.Errorf("MaxKeyLength = %d, want 1024", got)
+	if caps.MaxKeyLength != 1024 {
+		t.Errorf("MaxKeyLength = %d, want 1024", caps.MaxKeyLength)
+	}
+	if err := caps.ValidateKey(strings.Repeat("k", caps.MaxKeyLength)); err != nil {
+		t.Errorf("ValidateKey of MaxKeyLength bytes = %v, want nil", err)
+	}
+	if err := caps.ValidateKey(strings.Repeat("k", caps.MaxKeyLength+1)); err == nil {
+		t.Errorf("ValidateKey of MaxKeyLength+1 bytes = nil, want an error")
 	}
 }
