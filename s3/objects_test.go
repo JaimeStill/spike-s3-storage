@@ -712,10 +712,10 @@ func TestStat_OtherFailuresSkipTheBucketCheck(t *testing.T) {
 	}
 }
 
-// Each operation whose answer carries a body classifies the S3 error code
-// it names.
-func TestObjectOperations_ClassifyErrors(t *testing.T) {
-	ops := map[string]func(ctx context.Context, c storage.Client) error{
+// objectOperations calls each object operation on key "k", by name, and
+// returns its error.
+func objectOperations() map[string]func(ctx context.Context, c storage.Client) error {
+	return map[string]func(ctx context.Context, c storage.Client) error{
 		"Put": func(ctx context.Context, c storage.Client) error {
 			_, err := c.Put(ctx, "k", strings.NewReader("x"), storage.PutOptions{})
 			return err
@@ -724,12 +724,24 @@ func TestObjectOperations_ClassifyErrors(t *testing.T) {
 			_, err := c.Get(ctx, "k", storage.GetOptions{})
 			return err
 		},
+		"Stat": func(ctx context.Context, c storage.Client) error {
+			_, err := c.Stat(ctx, "k")
+			return err
+		},
 		"Delete": func(ctx context.Context, c storage.Client) error { return c.Delete(ctx, "k") },
 		"List": func(ctx context.Context, c storage.Client) error {
 			_, err := c.List(ctx, storage.ListOptions{})
 			return err
 		},
 	}
+}
+
+// Each object operation classifies the service's failure answers. An
+// answer with a body names its S3 error code; Stat's HEAD answer carries
+// none, so Stat classifies a 5xx by its status, and a 404 by the HeadBucket
+// that follows it, which the same scripted answer fails as NoSuchBucket.
+func TestObjectOperations_ClassifyErrors(t *testing.T) {
+	ops := objectOperations()
 	answers := []struct {
 		status int
 		code   string
@@ -755,6 +767,27 @@ func TestObjectOperations_ClassifyErrors(t *testing.T) {
 			for _, s := range []error{storage.ErrNotFound, storage.ErrContainerNotFound, storage.ErrUnavailable} {
 				if errors.Is(err, s) {
 					t.Fatalf("%s on AccessDenied = %v, want it unclassified", op, err)
+				}
+			}
+		})
+	}
+}
+
+// Every object operation against an endpoint nothing listens on fails with
+// storage.ErrUnavailable: no answer arrives, so there is no status or code
+// to classify by. Retries are off, so each fails on its first try.
+func TestObjectOperations_UnreachableEndpointIsUnavailable(t *testing.T) {
+	for op, call := range objectOperations() {
+		t.Run(op, func(t *testing.T) {
+			c := newClient(t, testConfig(t, closedEndpoint(t), nil))
+
+			err := call(t.Context(), c)
+			if !errors.Is(err, storage.ErrUnavailable) {
+				t.Fatalf("%s against a closed port = %v, want ErrUnavailable", op, err)
+			}
+			for _, other := range []error{storage.ErrNotFound, storage.ErrContainerNotFound} {
+				if errors.Is(err, other) {
+					t.Fatalf("%s against a closed port = %v, want it not to match %v", op, err, other)
 				}
 			}
 		})
