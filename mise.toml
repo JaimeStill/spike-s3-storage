@@ -4,11 +4,33 @@ golangci-lint = "2.14.0"
 jq = "1.8.2"
 "aqua:google/go-containerregistry" = "0.22.1"
 
-# Space-separated list of module directories, kept in sync with the go.work
-# use-list. "." is the base module; provider sub-modules are added as they
-# are built.
+# Space-separated lists of module directories, together kept in sync with the
+# go.work use-list. GO_MODULES are the modules that build standalone
+# (GOWORK=off): "." is the base module, and provider sub-modules are added as
+# they are built. GO_WORKSPACE_MODULES are the modules that build only in
+# workspace mode: app imports the s3 module, which is unpublished, and finds
+# it through go.work alone, with no requirement on it and no replace
+# directive, so its go.mod cannot resolve s3 on its own.
 [env]
 GO_MODULES = ". s3"
+GO_WORKSPACE_MODULES = "app"
+# The app's development stack (`mise run app:up`), under blobfs's environment prefix.
+# `mise run app:integration` overrides the ports for its isolated stack.
+# The hermetic check reads none of these: its tests clear them where an empty environment matters.
+BLOBFS_DATABASE_HOST = "127.0.0.1"
+BLOBFS_DATABASE_PORT = "5438"
+BLOBFS_DATABASE_NAME = "app"
+BLOBFS_DATABASE_USER = "app"
+BLOBFS_DATABASE_PASSWORD = "app"
+# The development stack's SeaweedFS S3 gateway, path-style, with the admin identity the compose
+# service gives it (access key admin, secret secret); `mise run app:integration` overrides the
+# endpoint for its isolated stack. The store's Start creates the bucket when it is missing, so
+# neither stack needs setup. Options reach the s3 provider as BLOBFS_STORAGE_OPTIONS_<KEY>, for
+# example BLOBFS_STORAGE_OPTIONS_MAX_RETRIES or _PART_SIZE.
+BLOBFS_STORAGE_ENDPOINT = "http://127.0.0.1:8334"
+BLOBFS_STORAGE_ACCOUNT = "admin"
+BLOBFS_STORAGE_KEY = "secret"
+BLOBFS_STORAGE_CONTAINER = "blobfs"
 
 [tasks.check]
 description = "Build, vet, format, fix, tidy, test, and lint every module; writes nothing"
@@ -27,14 +49,85 @@ for mod in $GO_MODULES; do
   go test -race ./...
   golangci-lint run ./...
 done
+# The workspace modules run every step above but `go mod tidy -diff`, in
+# workspace mode: tidy resolves a module's imports from its go.mod alone, and
+# app's import of the unpublished s3 module resolves only through go.work, so
+# tidy cannot run on it. app also lints its integration-tagged tests, as its
+# source repository's check did.
+unset GOWORK
+for mod in $GO_WORKSPACE_MODULES; do
+  echo "check: $mod (workspace)"
+  cd "$MISE_PROJECT_ROOT/$mod"
+  go build ./...
+  go vet ./...
+  unformatted=$(gofmt -l .)
+  if [ -n "$unformatted" ]; then echo "gofmt: unformatted files:"; echo "$unformatted"; exit 1; fi
+  go fix -diff ./...
+  go test -race ./...
+  golangci-lint run ./...
+  golangci-lint run --build-tags integration ./...
+done
 '''
+
+[tasks."seaweedfs:start"]
+description = "Start the SeaweedFS acceptance harness and wait until its S3 gateway answers"
+run = "scripts/seaweedfs.sh start"
+
+[tasks."seaweedfs:stop"]
+description = "Stop the SeaweedFS acceptance harness, discarding its data"
+run = "scripts/seaweedfs.sh stop"
+
+# The s3 module's tests with the endpoint set, so the acceptance tests run
+# rather than skip. The harness must be running: see seaweedfs:start.
+[tasks.acceptance]
+description = "Run the s3 module's tests, acceptance included, against the running SeaweedFS harness"
+run = '''
+set -eu
+export GOWORK=off
+cd "$MISE_PROJECT_ROOT/s3"
+S3_TEST_ENDPOINT="http://127.0.0.1:${SEAWEEDFS_PORT:-8333}" go test -race -count=1 -v ./...
+'''
+
+# The app's integration tier runs the same compose definition as its own project on its own
+# ports, so the development stack and its data are never touched, and tears it down with its
+# volumes when the suite ends, pass or fail. The test environment overrides the [env] defaults
+# above, which point at the development stack. It runs in workspace mode, like app's check.
+[tasks."app:integration"]
+description = "Start an isolated compose stack, run the app's integration tests against it, and tear it down"
+run = '''
+set -eu
+export COMPOSE_PROJECT_NAME=spike-s3-storage-integration POSTGRES_PORT=5439 SEAWEEDFS_S3_PORT=8335
+export BLOBFS_DATABASE_PORT="$POSTGRES_PORT"
+export BLOBFS_STORAGE_ENDPOINT="http://127.0.0.1:$SEAWEEDFS_S3_PORT"
+trap 'cd "$MISE_PROJECT_ROOT" && docker compose down -v' EXIT
+docker compose up -d --wait
+for mod in $GO_WORKSPACE_MODULES; do
+  echo "integration: $mod"
+  cd "$MISE_PROJECT_ROOT/$mod"
+  go test -race -tags integration -count=1 ./...
+done
+'''
+
+[tasks."app:up"]
+description = "Start the app's development Postgres and SeaweedFS and wait for them to be healthy"
+run = "docker compose up -d --wait"
+
+[tasks."app:down"]
+description = "Stop the app's development services (keep their data)"
+run = "docker compose down"
+
+[tasks."app:reset"]
+description = "Stop the app's development services and drop their data"
+run = "docker compose down -v"
 
 [tasks.currency]
 description = "Report every requirement, Go version, tool, action pin, and image tag behind its latest; writes nothing"
 run = "scripts/currency.sh"
 
+# The workspace modules are left out, because the upgrade ends in go mod tidy
+# (see GO_WORKSPACE_MODULES); app's go.mod is upgraded by hand.
 [tasks.upgrade]
-description = "Upgrade every module's go directive and direct requirements and the local mise tools to their latest, rewriting go.mod and mise.toml"
+description = "Upgrade the standalone modules' go directive and direct requirements and the local mise tools to their latest, rewriting go.mod and mise.toml"
 run = '''
 set -eu
 export GOWORK=off
@@ -51,16 +144,21 @@ cd "$MISE_PROJECT_ROOT"
 mise upgrade --bump --local
 '''
 
-# Each module builds with the workspace off, resolving its pins the way a
-# consumer does, so a pin that no longer builds fails here and in CI rather
-# than being masked by go.work.
+# Each standalone module builds with the workspace off, resolving its pins the
+# way a consumer does, so a pin that no longer builds fails here and in CI
+# rather than being masked by go.work. A workspace module can only build
+# through go.work.
 [tasks.build]
-description = "Build all modules standalone (GOWORK=off)"
+description = "Build the standalone modules with GOWORK=off and the workspace modules through go.work"
 run = '''
 set -e
 for mod in $GO_MODULES; do
   echo "==> build: $mod"
   (cd "$mod" && GOWORK=off go build ./...)
+done
+for mod in $GO_WORKSPACE_MODULES; do
+  echo "==> build: $mod (workspace)"
+  (cd "$mod" && go build ./...)
 done
 '''
 
@@ -68,7 +166,7 @@ done
 description = "Run tests across all modules"
 run = '''
 set -e
-for mod in $GO_MODULES; do
+for mod in $GO_MODULES $GO_WORKSPACE_MODULES; do
   echo "==> test: $mod"
   (cd "$mod" && go test -race ./...)
 done
@@ -78,7 +176,7 @@ done
 description = "Run go vet across all modules"
 run = '''
 set -e
-for mod in $GO_MODULES; do
+for mod in $GO_MODULES $GO_WORKSPACE_MODULES; do
   echo "==> vet: $mod"
   (cd "$mod" && go vet ./...)
 done
@@ -88,8 +186,10 @@ done
 description = "Format all Go source"
 run = "gofmt -w ."
 
+# The workspace modules are left out: tidy cannot resolve app's import of the
+# unpublished s3 module (see GO_WORKSPACE_MODULES).
 [tasks.tidy]
-description = "Run go mod tidy across all modules"
+description = "Run go mod tidy across the standalone modules"
 run = '''
 set -e
 for mod in $GO_MODULES; do
@@ -102,7 +202,7 @@ done
 description = "Run golangci-lint across all modules"
 run = '''
 set -e
-for mod in $GO_MODULES; do
+for mod in $GO_MODULES $GO_WORKSPACE_MODULES; do
   echo "==> lint: $mod"
   (cd "$mod" && golangci-lint run ./...)
 done

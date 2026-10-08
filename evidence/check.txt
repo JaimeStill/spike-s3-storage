@@ -1,0 +1,27 @@
+[check] $ export GOWORK=off
+check: .
+?   	github.com/JaimeStill/spike-s3-storage	[no test files]
+0 issues.
+check: s3
+ok  	github.com/JaimeStill/spike-s3-storage/s3	3.472s
+0 issues.
+check: app (workspace)
+?   	github.com/JaimeStill/spike-s3-storage/app	[no test files]
+?   	github.com/JaimeStill/spike-s3-storage/app/admin/schema	[no test files]
+ok  	github.com/JaimeStill/spike-s3-storage/app/cli	1.046s
+?   	github.com/JaimeStill/spike-s3-storage/app/cmd/blobfs	[no test files]
+ok  	github.com/JaimeStill/spike-s3-storage/app/domain/files	1.665s
+ok  	github.com/JaimeStill/spike-s3-storage/app/graph	1.010s
+?   	github.com/JaimeStill/spike-s3-storage/app/integration	[no test files]
+ok  	github.com/JaimeStill/spike-s3-storage/app/internal/app	1.842s
+?   	github.com/JaimeStill/spike-s3-storage/app/internal/apptest	[no test files]
+ok  	github.com/JaimeStill/spike-s3-storage/app/lifecycle	1.094s
+ok  	github.com/JaimeStill/spike-s3-storage/app/migrations	1.011s
+ok  	github.com/JaimeStill/spike-s3-storage/app/output	1.006s
+ok  	github.com/JaimeStill/spike-s3-storage/app/scenario	1.057s
+0 issues.
+0 issues.
+
+real	0m7.965s
+user	0m10.933s
+sys	0m3.363s

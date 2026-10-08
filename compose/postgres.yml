@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:18.6-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+    ports:
+      # 5438 by default so the stack coexists with go-web-service, sql-dsl, and spike-blobfs on
+      # 5432 through 5434 and spike-cli-architecture on 5436 and 5437;
+      # `mise run app:integration` sets 5439 for its isolated project.
+      - "127.0.0.1:${POSTGRES_PORT:-5438}:5432"
+    volumes:
+      - blobfs-postgres:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-app}",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  blobfs-postgres:

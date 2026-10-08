@@ -1,0 +1,11 @@
+# The app's local stack. `mise run app:up` runs it as the development project, spike-s3-storage,
+# on the default ports; `mise run app:integration` runs it as its own project,
+# spike-s3-storage-integration, on 5439 and 8335, and tears it down with its volumes when the
+# suite ends. The project name scopes the containers and volumes, and the host ports keep the two
+# projects, the s3 module's acceptance harness on 8333, and spike-cli-architecture's stack on
+# 5436, 5437, 10010, and 10011 apart, so all can run at once.
+name: spike-s3-storage
+
+include:
+  - compose/postgres.yml
+  - compose/seaweedfs.yml

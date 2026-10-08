@@ -31,7 +31,7 @@ matches() {
 
 go_minor=$(mise latest go | cut -d. -f1,2)
 
-for mod in $GO_MODULES; do
+for mod in $GO_MODULES $GO_WORKSPACE_MODULES; do
 	# Direct requirements with a newer version within their major.
 	updates=$(cd "$mod" && go list -m -u -f \
 		'{{if and (not .Main) (not .Indirect) .Update}}{{.Path}} {{.Version}} -> {{.Update.Version}}{{end}}' all)
