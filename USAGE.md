@@ -6,7 +6,7 @@ shows a placeholder such as `<alpha-id>`. Every output below is pasted from one 
 this repository's development stack, Postgres and SeaweedFS; ids, etags, timestamps, and timings
 differ in yours.
 
-## What the app is
+## What the spike is
 
 The app is the `blobfs` CLI of spike-cli-architecture, ported into this repository's `app` module
 (`github.com/JaimeStill/spike-s3-storage/app`) with one change of substance: its object store is
@@ -815,7 +815,7 @@ ok  	github.com/JaimeStill/spike-s3-storage/app/scenario	1.048s
 
 What the `integration` package proves:
 
-- **The black-box suite.** It builds `cmd/blobfs` once and runs it as a child process, configured
+- **The black-box suite.** It builds `app/cmd/blobfs` once and runs it as a child process, configured
   only through its environment, arguments, and stdin. `TestScript` runs one ordered script over
   every directory, object, and bookmark command.
 - **The pending put.** A `put -` with stdin held open commits a pending row; the test kills it
@@ -831,7 +831,8 @@ What the `integration` package proves:
 
 ## A tour of the code, lowest layer first
 
-Each package's `doc.go` describes it and lists its exports. [`STANDARDS.md`](STANDARDS.md)
+Every package below lives in the `app` module, under `app/`. Each package's `doc.go` describes it
+and lists its exports. [`STANDARDS.md`](STANDARDS.md)
 records the conventions the review settled: the file ontology, one `Commands` call per package,
 input checks in `Validate`, and success lines.
 

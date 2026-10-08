@@ -169,7 +169,7 @@ against the source shows module-path lines only. Not copied: `context/`, `.claud
   DELETE of `/<bucket>/<key>` without `uploadId`), and it forwards the incoming `Host` for SigV4.
 - `mise.toml`: the `app:*` tasks, `BLOBFS_*` defaults for the development stack, and `app` in
   the check as a workspace module; `go.work` gains `./app`; `scripts/currency.sh` covers it.
-- `app/USAGE.md` and `app/STANDARDS.md` adapted to this repository, USAGE's outputs
+- `USAGE.md` and `STANDARDS.md` adapted to this repository, USAGE's outputs
   re-captured against SeaweedFS.
 - Added: `app/integration/largebodies_test.go` (evidence 11–12), which reads the bucket through
   its own S3 client — an exception `app/integration/doc.go` states — and `proc`'s quiet mode,
@@ -185,4 +185,4 @@ against the source shows module-path lines only. Not copied: `context/`, `.claud
 | `mise run app:up` / `app:down` / `app:reset` | The development stack: Postgres 5438, SeaweedFS S3 8334; reset drops its data |
 | `mise run app:integration` | An isolated stack on 5439/8335, the app's integration suite, then teardown |
 
-`app/USAGE.md` walks through blobfs against the development stack.
+[`USAGE.md`](USAGE.md) walks through blobfs against the development stack.
